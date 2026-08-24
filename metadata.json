@@ -1,0 +1,6 @@
+{
+  "name": "Confidential-Info Guardrail",
+  "description": "Real-time zero-retention guardrail for meeting transcription that captures audio, transcribes, and detects & redacts credentials, secrets, and PII before display or persistence.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
