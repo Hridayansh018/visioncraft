@@ -1,0 +1,18 @@
+# VisionCraft Python Requirements
+# Core & FastAPI Gateway
+pydantic>=2.0.0
+fastapi>=0.110.0
+uvicorn>=0.28.0
+websockets>=12.0
+
+# Testing & Verification
+pytest>=7.0.0
+
+# Optional Local Audio Capture & ASR Dependencies
+# Uncomment for full local offline transcription & loopback recording:
+# faster-whisper>=1.0.0
+# sounddevice>=0.4.6
+# soundcard>=0.4.3
+# webrtcvad>=2.0.10
+# presidio-analyzer>=2.2.0
+# spacy>=3.5.0

@@ -1,5 +1,6 @@
 import { GuardrailRule, DetectedSpan, RedactionEvent, DetectorLayer } from './types';
 import { normalizeSpokenText } from './normalizer';
+import { sha256 } from './sha256';
 
 // Luhn algorithm validator for credit cards
 function passesLuhnCheck(numStr: string): boolean {
@@ -19,16 +20,12 @@ function passesLuhnCheck(numStr: string): boolean {
   return sum % 10 === 0;
 }
 
-// Simple SHA-256 simulation for client-side audit metadata integrity hashing
+/**
+ * Deterministic Cryptographic SHA-256 integrity hashing for audit logs and metadata.
+ * Complies with FR-024 / FR-025 requirements.
+ */
 export function createMetadataHash(data: string): string {
-  let hash = 0;
-  for (let i = 0; i < data.length; i++) {
-    const char = data.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
-  }
-  const hex = Math.abs(hash).toString(16).padStart(8, '0');
-  return `sha256_${hex}${Date.now().toString(16).slice(-6)}`;
+  return sha256(data);
 }
 
 // Known common English names for Layer 2 NER simulation (Presidio / spaCy en_core_web_lg model)
@@ -276,8 +273,8 @@ export function processGuardrailPipeline(
 
   const processingTimeMs = Math.max(1, Math.round(performance.now() - startTime));
 
-  // The Raw Buffer is zeroed out in RAM immediately as mandated by Section 1:
-  // "Raw transcribed text lives only in memory (RAM), transiently, and is overwritten"
+  // Ephemeral processing policy (FR-026 / FR-040 / FR-041):
+  // Raw transcribed text is processed transiently in-memory and not persisted to disk or telemetry.
   return {
     redactedText,
     detectedSpans: resolvedSpans,

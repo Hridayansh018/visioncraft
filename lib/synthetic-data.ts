@@ -43,7 +43,7 @@ export const BENCHMARK_EVAL_DATASET: EvalTestCase[] = [
   {
     id: 'eval-04',
     scenarioName: 'FinTech Credit Card Verification (Luhn Valid)',
-    textWithSecrets: 'The customer confirmed their corporate card ending in 4532 0150 0000 0005 for the enterprise subscription renewal.',
+    textWithSecrets: 'The customer confirmed their corporate card ending in 4532 0150 0000 0007 for the enterprise subscription renewal.',
     expectedSpans: [
       {
         start: 54,

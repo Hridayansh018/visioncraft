@@ -24,9 +24,13 @@ import {
   Upload,
   Radio,
   FileAudio,
-  ArrowRight
+  ArrowRight,
+  Monitor,
+  VolumeX,
+  HelpCircle,
+  Headphones
 } from 'lucide-react';
-import { GuardrailRule, DetectedSpan, MeetingMessage, MeetingSession, RedactionEvent, DetectorLayer } from '../lib/types';
+import { GuardrailRule, DetectedSpan, MeetingMessage, MeetingSession, RedactionEvent, DetectorLayer, AudioCaptureMode } from '../lib/types';
 import { processGuardrailPipeline } from '../lib/engine';
 import { PREDEFINED_MEETING_SCENARIOS, PredefinedMeetingScenario } from '../lib/meeting-scenarios';
 import confetti from 'canvas-confetti';
@@ -53,6 +57,10 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
   onExport,
 }) => {
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
+  const [captureMode, setCaptureMode] = useState<AudioCaptureMode>('dual_mixed');
+  const [isMicActive, setIsMicActive] = useState<boolean>(false);
+  const [isSystemActive, setIsSystemActive] = useState<boolean>(false);
+  const [showAudioHelp, setShowAudioHelp] = useState<boolean>(false);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('devops-incident');
   const [customInputText, setCustomInputText] = useState<string>('');
   const [activeSpeaker, setActiveSpeaker] = useState<string>('');
@@ -70,6 +78,9 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
   const recognitionRef = useRef<any>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const systemStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   // Live Audio Waveform Canvas Animation
   useEffect(() => {
@@ -102,8 +113,17 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
         const y = (height - barHeight) / 2;
         const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight);
         if (isCapturing) {
-          gradient.addColorStop(0, '#ef4444');
-          gradient.addColorStop(1, '#818cf8');
+          if (captureMode === 'dual_mixed') {
+            gradient.addColorStop(0, '#10b981');
+            gradient.addColorStop(0.5, '#6366f1');
+            gradient.addColorStop(1, '#ef4444');
+          } else if (captureMode === 'system_tab_only') {
+            gradient.addColorStop(0, '#38bdf8');
+            gradient.addColorStop(1, '#6366f1');
+          } else {
+            gradient.addColorStop(0, '#ef4444');
+            gradient.addColorStop(1, '#818cf8');
+          }
         } else if (isProcessingAudioFile) {
           gradient.addColorStop(0, '#10b981');
           gradient.addColorStop(1, '#6366f1');
@@ -127,7 +147,7 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [isCapturing, isProcessingAudioFile]);
+  }, [isCapturing, isProcessingAudioFile, captureMode]);
 
   // Auto scroll transcript container
   useEffect(() => {
@@ -207,55 +227,171 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
     }, 600);
   }, [rules, currentSession.id, activeLayers, allowlist, onRedactionCaught, setCurrentSession]);
 
-  // Web Speech API / Microphone toggle
-  const toggleMicrophoneCapture = async () => {
+  // Stop all active audio streams and recognition
+  const stopAudioCapture = () => {
+    setIsCapturing(false);
+    setIsMicActive(false);
+    setIsSystemActive(false);
+    setActiveSpeaker('');
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
+
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
+    }
+
+    if (systemStreamRef.current) {
+      systemStreamRef.current.getTracks().forEach((t) => t.stop());
+      systemStreamRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.close();
+      } catch {}
+      audioContextRef.current = null;
+    }
+
+    if (simulationTimerRef.current) {
+      clearTimeout(simulationTimerRef.current);
+    }
+  };
+
+  // Start Live Audio Capture supporting: Mic Only, System/Tab Audio, or Dual Mixed Bridge
+  const startLiveAudioCapture = async (mode: AudioCaptureMode = captureMode) => {
     if (isCapturing) {
-      // Stop capture
-      setIsCapturing(false);
-      setActiveSpeaker('');
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch {}
-      }
-      if (simulationTimerRef.current) {
-        clearTimeout(simulationTimerRef.current);
-      }
+      stopAudioCapture();
       return;
     }
 
-    // Start Live Speech Recognition
     setMicError(null);
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setMicError('Web Speech API is not natively supported in this browser environment. Using simulation mode.');
-      startSimulationScenario(selectedScenarioId);
-      return;
-    }
+    let micTrack: MediaStreamTrack | null = null;
+    let systemTrack: MediaStreamTrack | null = null;
 
     try {
+      // 1. Acquire Microphone Stream if needed
+      if (mode === 'mic_only' || mode === 'dual_mixed') {
+        try {
+          const micStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+          micStreamRef.current = micStream;
+          micTrack = micStream.getAudioTracks()[0];
+          setIsMicActive(true);
+        } catch (err: any) {
+          if (mode === 'mic_only') {
+            throw new Error(`Microphone permission denied or not found: ${err.message}`);
+          }
+          console.warn('Microphone not acquired for dual bridge:', err);
+        }
+      }
+
+      // 2. Acquire System / Tab Audio Stream if needed
+      if (mode === 'system_tab_only' || mode === 'dual_mixed') {
+        try {
+          const displayStream = await navigator.mediaDevices.getDisplayMedia({
+            audio: true,
+            video: true, // required by browser for getDisplayMedia prompt
+          });
+          systemStreamRef.current = displayStream;
+          const audioTracks = displayStream.getAudioTracks();
+
+          if (audioTracks.length === 0) {
+            // User did not check "Share tab audio" or "Share system audio"
+            setMicError('No system/tab audio track detected. When sharing, please make sure "Also share tab audio" (Chrome tab) or "Share system audio" is checked.');
+          } else {
+            systemTrack = audioTracks[0];
+            setIsSystemActive(true);
+
+            // Cleanly detach system audio if user clicks "Stop sharing" on the browser banner
+            systemTrack.onended = () => {
+              setIsSystemActive(false);
+              if (mode === 'system_tab_only') {
+                stopAudioCapture();
+              }
+            };
+          }
+        } catch (err: any) {
+          if (mode === 'system_tab_only') {
+            throw new Error(`System/Tab audio share cancelled or not supported: ${err.message}`);
+          }
+          console.warn('System audio not acquired for dual bridge:', err);
+        }
+      }
+
+      // 3. Web Audio API Mixing Graph (Merge Mic + System Audio into single pipeline)
+      if (mode === 'dual_mixed' && (micTrack || systemTrack)) {
+        try {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContextClass) {
+            const ctx = new AudioContextClass();
+            audioContextRef.current = ctx;
+            const destination = ctx.createMediaStreamDestination();
+
+            if (micStreamRef.current && micStreamRef.current.getAudioTracks().length > 0) {
+              const micSource = ctx.createMediaStreamSource(micStreamRef.current);
+              micSource.connect(destination);
+            }
+
+            if (systemStreamRef.current && systemStreamRef.current.getAudioTracks().length > 0) {
+              const sysSource = ctx.createMediaStreamSource(systemStreamRef.current);
+              sysSource.connect(destination);
+            }
+          }
+        } catch (mixErr) {
+          console.warn('Web Audio API mixing error, proceeding with available stream:', mixErr);
+        }
+      }
+
+      // 4. Update Session Source State
+      const newSource = mode === 'dual_mixed' ? 'mixed_audio' : mode === 'system_tab_only' ? 'system_audio' : 'microphone';
+      setCurrentSession((prev) => ({ ...prev, source: newSource }));
+
+      // 5. Start Speech Recognition
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        setMicError('Web Speech API is not natively available in this browser. Live hardware audio captured; running meeting scenario fallback.');
+        startSimulationScenario(selectedScenarioId);
+        return;
+      }
+
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = false;
       recognition.lang = 'en-US';
 
+      const speakerLabel = mode === 'dual_mixed'
+        ? 'Meeting Bridge (All Members)'
+        : mode === 'system_tab_only'
+        ? 'Remote Participant (System Audio)'
+        : 'Host (Live Microphone)';
+
       recognition.onstart = () => {
         setIsCapturing(true);
-        setActiveSpeaker('Host (Live Microphone)');
+        setActiveSpeaker(speakerLabel);
       };
 
       recognition.onresult = (event: any) => {
         const lastIndex = event.results.length - 1;
         const speechChunk = event.results[lastIndex][0].transcript;
-        handleIncomingSpeech(speechChunk, 'Host (Live Microphone)');
+        handleIncomingSpeech(speechChunk, speakerLabel);
       };
 
       recognition.onerror = (event: any) => {
         if (event.error === 'not-allowed') {
-          setMicError('Microphone access denied. You can still test with simulated meeting dialogues or custom text streams.');
+          setMicError('Audio permissions were not granted. You can still test with simulated call scenarios or custom text injection.');
         } else {
-          setMicError(`Speech error (${event.error}). Running simulated scenario instead.`);
+          setMicError(`Audio recognition status (${event.error}). Testing with simulation scenario.`);
         }
         setIsCapturing(false);
       };
@@ -270,8 +406,9 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
 
       recognitionRef.current = recognition;
       recognition.start();
+      setIsCapturing(true);
     } catch (err: any) {
-      setMicError(`Could not access audio device: ${err.message}. Running meeting simulator.`);
+      setMicError(`Audio capture notice: ${err.message}. Running meeting simulator.`);
       startSimulationScenario(selectedScenarioId);
     }
   };
@@ -392,9 +529,53 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* Main Action Buttons */}
           <div className="flex flex-wrap items-center gap-3">
+            {/* Capture Source Mode Dropdown */}
+            <div className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setCaptureMode('dual_mixed')}
+                disabled={isCapturing}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  captureMode === 'dual_mixed'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Capture both your microphone and system/tab meeting audio from all members"
+              >
+                🎙️+🖥️ Full Bridge
+              </button>
+              <button
+                type="button"
+                onClick={() => setCaptureMode('system_tab_only')}
+                disabled={isCapturing}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  captureMode === 'system_tab_only'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Capture only incoming audio from the meeting tab/window (Google Meet, Teams, Zoom)"
+              >
+                🖥️ System/Tab
+              </button>
+              <button
+                type="button"
+                onClick={() => setCaptureMode('mic_only')}
+                disabled={isCapturing}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  captureMode === 'mic_only'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Capture only your local microphone"
+              >
+                🎙️ Mic Only
+              </button>
+            </div>
+
+            {/* Main Audio Capture Toggle */}
             <button
               id="live-mic-toggle-button"
-              onClick={toggleMicrophoneCapture}
+              onClick={() => startLiveAudioCapture(captureMode)}
               disabled={isProcessingAudioFile}
               className={`flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all shadow-md ${
                 isCapturing && !isProcessingAudioFile
@@ -409,10 +590,25 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
                 </>
               ) : (
                 <>
-                  <Mic className="h-4 w-4" />
-                  <span>Start Live Audio Capture</span>
+                  {captureMode === 'dual_mixed' && <Headphones className="h-4 w-4" />}
+                  {captureMode === 'system_tab_only' && <Monitor className="h-4 w-4" />}
+                  {captureMode === 'mic_only' && <Mic className="h-4 w-4" />}
+                  <span>
+                    {captureMode === 'dual_mixed' && 'Start Full Meeting Capture'}
+                    {captureMode === 'system_tab_only' && 'Capture System / Tab Audio'}
+                    {captureMode === 'mic_only' && 'Start Mic Capture'}
+                  </span>
                 </>
               )}
+            </button>
+
+            {/* Audio Help / Instructions button */}
+            <button
+              onClick={() => setShowAudioHelp(true)}
+              className="rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700 p-2 text-slate-300 hover:text-white transition-colors"
+              title="How to capture meeting tab & system audio"
+            >
+              <HelpCircle className="h-4 w-4 text-indigo-400" />
             </button>
 
             {/* Audio File Upload */}
@@ -467,8 +663,26 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
             </button>
           </div>
 
-          {/* Quick Metrics & Visualizer */}
+          {/* Quick Metrics, Source Badges & Visualizer */}
           <div className="flex flex-wrap items-center gap-3">
+            {/* Active Source Indicators */}
+            <div className="flex items-center gap-1.5 text-[11px] font-mono">
+              <span className={`px-2 py-0.5 rounded border ${
+                isMicActive
+                  ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300 animate-pulse'
+                  : 'bg-slate-950 border-slate-800 text-slate-500'
+              }`}>
+                🎙️ Mic: {isMicActive ? 'ON' : 'OFF'}
+              </span>
+              <span className={`px-2 py-0.5 rounded border ${
+                isSystemActive
+                  ? 'bg-sky-950/80 border-sky-700 text-sky-300 animate-pulse'
+                  : 'bg-slate-950 border-slate-800 text-slate-500'
+              }`}>
+                🖥️ System: {isSystemActive ? 'ON' : 'OFF'}
+              </span>
+            </div>
+
             {/* Live Audio Visualizer Canvas */}
             <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 shadow-inner">
               <Radio className={`h-3.5 w-3.5 ${isCapturing || isProcessingAudioFile ? 'text-rose-400 animate-pulse' : 'text-slate-600'}`} />
@@ -877,6 +1091,71 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Audio Capture Instructions Modal */}
+      {showAudioHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-white font-bold text-base">
+                <Headphones className="h-5 w-5 text-indigo-400" />
+                <span>How to Capture Audio From All Meeting Members</span>
+              </div>
+              <button
+                onClick={() => setShowAudioHelp(false)}
+                className="rounded-lg p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
+              <p>
+                To redact secrets spoken by <strong>remote participants</strong> on Google Meet, Microsoft Teams, Zoom Web, or Slack Huddles, enable <strong>System / Tab Audio Sharing</strong>:
+              </p>
+
+              <div className="space-y-2 rounded-xl bg-slate-950/70 p-3.5 border border-slate-800">
+                <div className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">1</span>
+                  <span>Select <strong>🎙️+🖥️ Full Bridge</strong> in the top toolbar to capture both your microphone and all remote members.</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">2</span>
+                  <span>Click <strong>Start Full Meeting Capture</strong>.</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">3</span>
+                  <span>In the browser pop-up, select the <strong>Chrome Tab</strong> or <strong>Window</strong> containing your active meeting.</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">4</span>
+                  <span>
+                    <strong className="text-emerald-400">CRITICAL:</strong> Check the box labeled <strong>&ldquo;Also share tab audio&rdquo;</strong> (bottom-left of browser dialog).
+                  </span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">5</span>
+                  <span>Click <strong>Share</strong>. The Guardrail will now intercept, transcribe, and redact speech from all meeting members in real time.</span>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-emerald-900/60 bg-emerald-950/30 p-2.5 text-[11px] text-emerald-300 flex items-center gap-2">
+                <Lock className="h-4 w-4 shrink-0 text-emerald-400" />
+                <span>All captured participant audio is processed strictly in ephemeral RAM and zeroed immediately after redaction.</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setShowAudioHelp(false)}
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold text-white transition-colors"
+              >
+                Got It, Let&apos;s Start
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

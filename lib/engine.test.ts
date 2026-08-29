@@ -56,7 +56,7 @@ export function runEngineUnitTests(): TestReport {
 
   // Test 3: Layer 1 Credit Card with Luhn Validation
   assert('Layer 1: Luhn check validates genuine credit card and filters invalid numbers', () => {
-    const validCard = 'Card is 4532 0150 0000 0005 for payment';
+    const validCard = 'Card is 4532 0150 0000 0007 for payment';
     const resValid = processGuardrailPipeline(validCard, DEFAULT_GUARDRAIL_RULES, 'test-session');
     if (!resValid.redactedText.includes('CREDIT_CARD')) {
       throw new Error(`Expected CREDIT_CARD redaction for valid card, got: "${resValid.redactedText}"`);
@@ -117,12 +117,25 @@ export function runEngineUnitTests(): TestReport {
   });
 
   // Test 9: Benchmark Dataset Verification
-  assert('Benchmark: Evaluates 10 standard test cases', () => {
+  assert('Benchmark: Evaluates standard test cases', () => {
     for (const testCase of BENCHMARK_EVAL_DATASET) {
       const res = processGuardrailPipeline(testCase.textWithSecrets, DEFAULT_GUARDRAIL_RULES, 'eval-session');
       if (testCase.expectedSpans.length > 0 && res.detectedSpans.length === 0) {
         throw new Error(`Failed to catch expected secrets in test case: ${testCase.scenarioName}`);
       }
+    }
+  });
+
+  // Test 10: Cryptographic SHA-256 Integrity Verification (FR-024)
+  assert('Audit Integrity: Redaction event hashes are valid 64-char hex SHA-256 strings', () => {
+    const input = 'My key is AKIAIOSFODNN7EXAMPLE for the deploy';
+    const res = processGuardrailPipeline(input, DEFAULT_GUARDRAIL_RULES, 'test-session');
+    if (res.events.length === 0) {
+      throw new Error('Expected at least 1 redaction event');
+    }
+    const hash = res.events[0].integrityHash;
+    if (!/^[a-f0-9]{64}$/.test(hash)) {
+      throw new Error(`Expected 64-char hex SHA-256 hash, got: "${hash}"`);
     }
   });
 

@@ -4,9 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "server": "python -m uvicorn server.main:app --reload --port 8000",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "setup:py": "pip install -r requirements.txt && pip install -e .",
+    "test": "npx tsx scripts/run-tests.ts",
+    "test:py": "python -m pytest -v",
+    "test:all": "npm test && npm run test:py",
     "clean": "next clean"
   },
   "dependencies": {

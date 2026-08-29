@@ -96,8 +96,14 @@ export function normalizeSpokenText(raw: string): NormalizedTranscript {
     text = text.replace(regex, digit);
   }
 
-  // 5. Clean comma-separated single spelled letters (e.g. "S, u, n, 2, 0, 2, 4" -> "Sun2024")
-  text = text.replace(/\b([A-Za-z0-9])(?:,\s*|\s+)([A-Za-z0-9])(?:,\s*|\s+)([A-Za-z0-9])\b/g, '$1$2$3');
+  // 5. Clean comma-separated and space-separated single spelled letters and digits
+  // Iteratively collapse single character / digit sequences (e.g. "2 0 2 6" -> "2026", "A K I A" -> "AKIA")
+  let prevText = '';
+  while (prevText !== text) {
+    prevText = text;
+    text = text.replace(/\b([A-Za-z]),?\s+([A-Za-z])\b/g, '$1$2');
+    text = text.replace(/\b(\d+)\s+(\d+)\b/g, '$1$2');
+  }
 
   // 6. Strip filler words when surrounded by speech
   for (const filler of FILLER_WORDS) {

@@ -49,6 +49,8 @@ export interface RedactionEvent {
   integrityHash: string; // SHA-256 hash of metadata
 }
 
+export type AudioCaptureMode = 'mic_only' | 'system_tab_only' | 'dual_mixed';
+
 export interface MeetingMessage {
   id: string;
   speaker: string;
@@ -64,7 +66,7 @@ export interface MeetingSession {
   startedAt: number;
   endedAt?: number;
   durationSeconds: number;
-  source: 'microphone' | 'simulation' | 'text_stream';
+  source: 'microphone' | 'system_audio' | 'mixed_audio' | 'simulation' | 'text_stream';
   messages: MeetingMessage[];
   totalRedactions: number;
   redactionsByCategory: Record<string, number>;
