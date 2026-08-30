@@ -65,16 +65,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     count: value,
   }));
 
-  if (categoryChartData.length === 0) {
-    categoryChartData.push(
-      { name: 'API KEYS', count: 12 },
-      { name: 'CREDENTIALS', count: 9 },
-      { name: 'FINANCIAL', count: 6 },
-      { name: 'PII', count: 8 },
-      { name: 'SPOKEN CUES', count: 5 }
-    );
-  }
-
   // Layer breakdown
   const layerMap: Record<string, number> = { 'Layer 1 (Regex)': 0, 'Layer 2 (NER)': 0, 'Layer 3 (Cues)': 0 };
   events.forEach((e) => {
@@ -83,20 +73,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     else if (e.layer === 3) layerMap['Layer 3 (Cues)']++;
   });
 
-  const layerChartData = Object.entries(layerMap).map(([name, value]) => ({
-    name,
-    value: value || 1,
-  }));
+  const layerChartData = Object.entries(layerMap)
+    .filter(([_, value]) => value > 0)
+    .map(([name, value]) => ({
+      name,
+      value,
+    }));
 
-  // Hourly / meeting timeline simulation data
-  const timelineData = [
-    { time: '10:00', aws_keys: 2, passwords: 1, pii: 0 },
-    { time: '10:15', aws_keys: 5, passwords: 3, pii: 2 },
-    { time: '10:30', aws_keys: 1, passwords: 4, pii: 3 },
-    { time: '10:45', aws_keys: 8, passwords: 2, pii: 1 },
-    { time: '11:00', aws_keys: 3, passwords: 6, pii: 4 },
-    { time: '11:15', aws_keys: 4, passwords: 1, pii: 2 },
-  ];
+  // Dynamic timeline data from current session events
+  const timelineMap: Record<string, { time: string; aws_keys: number; passwords: number; pii: number }> = {};
+  events.forEach((e) => {
+    const t = new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!timelineMap[t]) {
+      timelineMap[t] = { time: t, aws_keys: 0, passwords: 0, pii: 0 };
+    }
+    if (e.category === 'api_keys') timelineMap[t].aws_keys++;
+    else if (e.category === 'spoken_cue' || e.category === 'credentials') timelineMap[t].passwords++;
+    else if (e.category === 'pii') timelineMap[t].pii++;
+  });
+
+  const timelineData = Object.values(timelineMap);
 
   // Severity Distribution
   const severityMap = { Critical: 0, High: 0, Medium: 0, Low: 0 };
@@ -109,7 +105,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const severityChartData = Object.entries(severityMap).map(([name, count]) => ({
     name,
-    count: count || (name === 'Critical' ? 14 : name === 'High' ? 9 : 4),
+    count,
   }));
 
   return (
@@ -199,22 +195,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <h3 className="text-sm font-bold text-slate-200">Redactions Intercepted by Category</h3>
             <span className="text-xs text-slate-500 font-mono">Live Counter</span>
           </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
-                <YAxis stroke="#94a3b8" fontSize={11} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }}
-                />
-                <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]}>
-                  {categoryChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-64 w-full flex items-center justify-center">
+            {categoryChartData.length === 0 ? (
+              <div className="text-center text-xs text-slate-500 space-y-1">
+                <PieIcon className="w-8 h-8 mx-auto opacity-40 text-slate-400" />
+                <p className="font-semibold text-slate-400">No Category Data Recorded</p>
+                <p className="text-[11px] text-slate-500">Live redaction counts will appear here once audio is transcribed.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={categoryChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                  <YAxis stroke="#94a3b8" fontSize={11} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }}
+                  />
+                  <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]}>
+                    {categoryChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -225,27 +229,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="text-xs text-slate-500 font-mono">Layer 1 vs 2 vs 3</span>
           </div>
           <div className="h-64 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={layerChartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={85}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {layerChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }}
-                />
-                <Legend formatter={(value) => <span className="text-xs text-slate-300">{value}</span>} />
-              </PieChart>
-            </ResponsiveContainer>
+            {layerChartData.length === 0 ? (
+              <div className="text-center text-xs text-slate-500 space-y-1">
+                <Layers className="w-8 h-8 mx-auto opacity-40 text-slate-400" />
+                <p className="font-semibold text-slate-400">No Layer Interceptions Yet</p>
+                <p className="text-[11px] text-slate-500">Distribution across Layers 1, 2, and 3 will populate live.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={layerChartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={85}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {layerChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }}
+                  />
+                  <Legend formatter={(value) => <span className="text-xs text-slate-300">{value}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -253,23 +265,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-200">Real-time Interception Spike Timeline</h3>
-            <span className="text-xs text-slate-500 font-mono">15-min Intervals</span>
+            <span className="text-xs text-slate-500 font-mono">Real-time Stream</span>
           </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={timelineData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} />
-                <YAxis stroke="#94a3b8" fontSize={11} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }}
-                />
-                <Legend formatter={(value) => <span className="text-xs text-slate-300">{value}</span>} />
-                <Line type="monotone" dataKey="aws_keys" name="AWS Keys" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="passwords" name="Credentials" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="pii" name="PII Spans" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="h-64 w-full flex items-center justify-center">
+            {timelineData.length === 0 ? (
+              <div className="text-center text-xs text-slate-500 space-y-1">
+                <Activity className="w-8 h-8 mx-auto opacity-40 text-slate-400" />
+                <p className="font-semibold text-slate-400">No Timeline Data</p>
+                <p className="text-[11px] text-slate-500">Interception timeline points will plot in real time.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={timelineData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} />
+                  <YAxis stroke="#94a3b8" fontSize={11} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }}
+                  />
+                  <Legend formatter={(value) => <span className="text-xs text-slate-300">{value}</span>} />
+                  <Line type="monotone" dataKey="aws_keys" name="AWS Keys" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="passwords" name="Credentials" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="pii" name="PII Spans" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -279,18 +299,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <h3 className="text-sm font-bold text-slate-200">Severity Distribution</h3>
             <span className="text-xs text-slate-500 font-mono">CVSS Threat Weight</span>
           </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={severityChartData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis type="number" stroke="#94a3b8" fontSize={11} />
-                <YAxis type="category" dataKey="name" stroke="#94a3b8" fontSize={11} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }}
-                />
-                <Bar dataKey="count" fill="#ec4899" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-64 w-full flex items-center justify-center">
+            {totalRedactions === 0 ? (
+              <div className="text-center text-xs text-slate-500 space-y-1">
+                <ShieldAlert className="w-8 h-8 mx-auto opacity-40 text-slate-400" />
+                <p className="font-semibold text-slate-400">No Severity Spans Recorded</p>
+                <p className="text-[11px] text-slate-500">Threat weight distributions will appear as items are caught.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={severityChartData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis type="number" stroke="#94a3b8" fontSize={11} />
+                  <YAxis type="category" dataKey="name" stroke="#94a3b8" fontSize={11} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }}
+                  />
+                  <Bar dataKey="count" fill="#ec4899" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>

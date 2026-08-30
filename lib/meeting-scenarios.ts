@@ -18,7 +18,7 @@ export interface PredefinedMeetingScenario {
 export const PREDEFINED_MEETING_SCENARIOS: PredefinedMeetingScenario[] = [
   {
     id: 'devops-incident',
-    title: '🚨 DevOps Severity-1 Incident Call',
+    title: 'DevOps Severity-1 Incident Call',
     category: 'Cloud & Credentials',
     description: 'Engineering team frantically diagnosing an outage and sharing AWS keys, DB URIs, and root tokens over voice.',
     expectedRedactionsCount: 4,
@@ -62,7 +62,7 @@ export const PREDEFINED_MEETING_SCENARIOS: PredefinedMeetingScenario[] = [
   },
   {
     id: 'fintech-compliance',
-    title: '💳 FinTech Customer Escalation & KYC Sync',
+    title: 'FinTech Customer Escalation & KYC Sync',
     category: 'Banking & PII',
     description: 'Support rep and compliance officer discussing a flagged high-value account with card details and SSN.',
     expectedRedactionsCount: 4,
@@ -85,7 +85,7 @@ export const PREDEFINED_MEETING_SCENARIOS: PredefinedMeetingScenario[] = [
         speaker: 'David (Customer Support)',
         avatarColor: 'bg-amber-600',
         role: 'Tier 3 Support',
-        text: 'The card on file is 4532 0150 0000 0005 under primary cardholder Sarah Connor.',
+        text: 'The card on file is 4532 0150 0000 0007 under primary cardholder Sarah Connor.',
         delayMs: 2400,
       },
       {
@@ -106,7 +106,7 @@ export const PREDEFINED_MEETING_SCENARIOS: PredefinedMeetingScenario[] = [
   },
   {
     id: 'spoken-phonetic-secrets',
-    title: '🗣️ Spoken Phonetic & Spelled-out Passwords',
+    title: 'Spoken Phonetic & Spelled-out Passwords',
     category: 'Speech Normalization',
     description: 'Demonstrates Layer 0 speech normalization handling spelled letters, spoken punctuation ("dot", "at"), and trigger phrases.',
     expectedRedactionsCount: 3,
@@ -150,7 +150,7 @@ export const PREDEFINED_MEETING_SCENARIOS: PredefinedMeetingScenario[] = [
   },
   {
     id: 'executive-strategy',
-    title: '👔 Executive M&A Strategy & Compensation',
+    title: 'Executive M&A Strategy & Compensation',
     category: 'Executive Strategy',
     description: 'C-suite discussion regarding acquisition valuation, target project names, and executive compensation terms.',
     expectedRedactionsCount: 3,

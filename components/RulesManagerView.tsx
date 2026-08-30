@@ -16,7 +16,8 @@ import {
   RotateCcw,
   Search,
   Zap,
-  Info
+  Info,
+  X
 } from 'lucide-react';
 import { GuardrailRule, RedactionStyle, DetectorLayer } from '../lib/types';
 import { DEFAULT_GUARDRAIL_RULES } from '../lib/default-rules';
@@ -451,9 +452,9 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
               </h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition-colors"
               >
-                ✕
+                <X className="h-4 w-4" />
               </button>
             </div>
 

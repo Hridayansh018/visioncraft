@@ -114,22 +114,22 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
         const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight);
         if (isCapturing) {
           if (captureMode === 'dual_mixed') {
-            gradient.addColorStop(0, '#10b981');
-            gradient.addColorStop(0.5, '#6366f1');
-            gradient.addColorStop(1, '#ef4444');
+            gradient.addColorStop(0, '#4d8eff');
+            gradient.addColorStop(0.5, '#3b82f6');
+            gradient.addColorStop(1, '#4fdbc8');
           } else if (captureMode === 'system_tab_only') {
-            gradient.addColorStop(0, '#38bdf8');
-            gradient.addColorStop(1, '#6366f1');
+            gradient.addColorStop(0, '#3b82f6');
+            gradient.addColorStop(1, '#4fdbc8');
           } else {
-            gradient.addColorStop(0, '#ef4444');
-            gradient.addColorStop(1, '#818cf8');
+            gradient.addColorStop(0, '#4d8eff');
+            gradient.addColorStop(1, '#2563eb');
           }
         } else if (isProcessingAudioFile) {
-          gradient.addColorStop(0, '#10b981');
-          gradient.addColorStop(1, '#6366f1');
+          gradient.addColorStop(0, '#4fdbc8');
+          gradient.addColorStop(1, '#71f8e4');
         } else {
-          gradient.addColorStop(0, '#475569');
-          gradient.addColorStop(1, '#334155');
+          gradient.addColorStop(0, '#31353f');
+          gradient.addColorStop(1, '#1c1f29');
         }
 
         ctx.fillStyle = gradient;
@@ -530,45 +530,48 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
           {/* Main Action Buttons */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Capture Source Mode Dropdown */}
-            <div className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 p-1 text-xs">
+            <div className="flex items-center gap-1.5 rounded-lg border border-[#3e495d] bg-[#181b25] p-1 text-xs">
               <button
                 type="button"
                 onClick={() => setCaptureMode('dual_mixed')}
                 disabled={isCapturing}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5 ${
                   captureMode === 'dual_mixed'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#4d8eff] text-[#00285d] font-semibold shadow-sm'
+                    : 'text-[#8c909f] hover:text-[#dfe2ef]'
                 }`}
                 title="Capture both your microphone and system/tab meeting audio from all members"
               >
-                🎙️+🖥️ Full Bridge
+                <Headphones className="w-3.5 h-3.5" />
+                <span>Full Bridge</span>
               </button>
               <button
                 type="button"
                 onClick={() => setCaptureMode('system_tab_only')}
                 disabled={isCapturing}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5 ${
                   captureMode === 'system_tab_only'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#4d8eff] text-[#00285d] font-semibold shadow-sm'
+                    : 'text-[#8c909f] hover:text-[#dfe2ef]'
                 }`}
                 title="Capture only incoming audio from the meeting tab/window (Google Meet, Teams, Zoom)"
               >
-                🖥️ System/Tab
+                <Monitor className="w-3.5 h-3.5" />
+                <span>System/Tab</span>
               </button>
               <button
                 type="button"
                 onClick={() => setCaptureMode('mic_only')}
                 disabled={isCapturing}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5 ${
                   captureMode === 'mic_only'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#4d8eff] text-[#00285d] font-semibold shadow-sm'
+                    : 'text-[#8c909f] hover:text-[#dfe2ef]'
                 }`}
                 title="Capture only your local microphone"
               >
-                🎙️ Mic Only
+                <Mic className="w-3.5 h-3.5" />
+                <span>Mic Only</span>
               </button>
             </div>
 
@@ -667,19 +670,21 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
           <div className="flex flex-wrap items-center gap-3">
             {/* Active Source Indicators */}
             <div className="flex items-center gap-1.5 text-[11px] font-mono">
-              <span className={`px-2 py-0.5 rounded border ${
+              <span className={`px-2.5 py-1 rounded-md border flex items-center gap-1.5 ${
                 isMicActive
-                  ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300 animate-pulse'
-                  : 'bg-slate-950 border-slate-800 text-slate-500'
+                  ? 'bg-[#181b25] border-[#4fdbc8] text-[#4fdbc8] animate-pulse'
+                  : 'bg-[#0a0e17] border-[#262a34] text-[#8c909f]'
               }`}>
-                🎙️ Mic: {isMicActive ? 'ON' : 'OFF'}
+                <Mic className="w-3 h-3" />
+                <span>Mic: {isMicActive ? 'ON' : 'OFF'}</span>
               </span>
-              <span className={`px-2 py-0.5 rounded border ${
+              <span className={`px-2.5 py-1 rounded-md border flex items-center gap-1.5 ${
                 isSystemActive
-                  ? 'bg-sky-950/80 border-sky-700 text-sky-300 animate-pulse'
-                  : 'bg-slate-950 border-slate-800 text-slate-500'
+                  ? 'bg-[#181b25] border-[#4d8eff] text-[#4d8eff] animate-pulse'
+                  : 'bg-[#0a0e17] border-[#262a34] text-[#8c909f]'
               }`}>
-                🖥️ System: {isSystemActive ? 'ON' : 'OFF'}
+                <Monitor className="w-3 h-3" />
+                <span>System: {isSystemActive ? 'ON' : 'OFF'}</span>
               </span>
             </div>
 
@@ -769,12 +774,32 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
               Section 1 Compliant
             </span>
           </div>
-          <span className="text-slate-500 text-[11px] font-mono">
-            {ramBufferState === 'idle' && '● RAM Status: READY'}
-            {ramBufferState === 'buffering_raw' && '▲ RAM Status: SPEECH CHUNK IN MEMORY'}
-            {ramBufferState === 'scanning_guardrail' && '⚡ RAM Status: RUNNING DEFENSE-IN-DEPTH (<15ms)'}
-            {ramBufferState === 'zero_overwritten' && '✔ RAM Status: ZERO-FILL OVERWRITTEN (0x00)'}
-          </span>
+          <div className="text-[#8c909f] text-[11px] font-mono flex items-center gap-1.5">
+            {ramBufferState === 'idle' && (
+              <>
+                <span className="w-2 h-2 rounded-full bg-[#4fdbc8]"></span>
+                <span>RAM Status: READY</span>
+              </>
+            )}
+            {ramBufferState === 'buffering_raw' && (
+              <>
+                <span className="w-2 h-2 rounded-full bg-[#4d8eff] animate-ping"></span>
+                <span>RAM Status: SPEECH CHUNK IN MEMORY</span>
+              </>
+            )}
+            {ramBufferState === 'scanning_guardrail' && (
+              <>
+                <Activity className="w-3.5 h-3.5 text-[#f59e0b] animate-spin" />
+                <span className="text-[#f59e0b]">RAM Status: RUNNING DEFENSE-IN-DEPTH (&lt;15ms)</span>
+              </>
+            )}
+            {ramBufferState === 'zero_overwritten' && (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#4fdbc8]" />
+                <span className="text-[#4fdbc8]">RAM Status: ZERO-FILL OVERWRITTEN (0x00)</span>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Interactive Steps Pipeline */}
@@ -1103,21 +1128,21 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
               </div>
               <button
                 onClick={() => setShowAudioHelp(false)}
-                className="rounded-lg p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="rounded-lg p-1.5 text-[#8c909f] hover:text-white hover:bg-[#262a34] transition-colors"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
+            <div className="space-y-3 text-xs text-[#c2c6d6] leading-relaxed">
               <p>
                 To redact secrets spoken by <strong>remote participants</strong> on Google Meet, Microsoft Teams, Zoom Web, or Slack Huddles, enable <strong>System / Tab Audio Sharing</strong>:
               </p>
 
-              <div className="space-y-2 rounded-xl bg-slate-950/70 p-3.5 border border-slate-800">
+              <div className="space-y-2 rounded-xl bg-[#0a0e17] p-3.5 border border-[#262a34]">
                 <div className="flex items-start gap-2.5">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">1</span>
-                  <span>Select <strong>🎙️+🖥️ Full Bridge</strong> in the top toolbar to capture both your microphone and all remote members.</span>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#4d8eff] text-[10px] font-bold text-[#00285d]">1</span>
+                  <span>Select <strong>Full Bridge</strong> in the top toolbar to capture both your microphone and all remote members.</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">2</span>

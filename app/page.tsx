@@ -15,132 +15,37 @@ import { GuardrailRule, RedactionEvent, MeetingSession } from '../lib/types';
 import { DEFAULT_GUARDRAIL_RULES } from '../lib/default-rules';
 import { createMetadataHash } from '../lib/engine';
 
-const STATIC_NOW = 1715000000000;
-
-const INITIAL_EVENTS: RedactionEvent[] = [
-  {
-    id: 'evt-init-001',
-    sessionId: 'session-main-01',
-    timestamp: STATIC_NOW - 1000 * 60 * 10,
-    ruleId: 'rule-aws-key',
-    ruleName: 'AWS Access Key ID',
-    category: 'api_keys',
-    layer: 1,
-    confidence: 0.95,
-    severity: 'critical',
-    safeMaskedContext: '...reading the backup AWS key [AWS_ACCESS_KEY] to inspect...',
-    status: 'pending_review',
-    charOffset: 35,
-    integrityHash: createMetadataHash('session-main-01:rule-aws-key:api_keys:0.95:35:51'),
-  },
-  {
-    id: 'evt-init-002',
-    sessionId: 'session-archived-99',
-    timestamp: STATIC_NOW - 1000 * 60 * 45,
-    ruleId: 'rule-db-uri',
-    ruleName: 'Database Connection String',
-    category: 'credentials',
-    layer: 1,
-    confidence: 0.95,
-    severity: 'critical',
-    safeMaskedContext: '...connection URI is [DATABASE_CONN_URI] please reset...',
-    status: 'confirmed_true_positive',
-    charOffset: 24,
-    integrityHash: createMetadataHash('session-archived-99:rule-db-uri:credentials:0.95:24:60'),
-  },
-  {
-    id: 'evt-init-003',
-    sessionId: 'session-archived-99',
-    timestamp: STATIC_NOW - 1000 * 60 * 40,
-    ruleId: 'rule-spoken-password',
-    ruleName: 'Spoken Password Lead-in',
-    category: 'spoken_cue',
-    layer: 3,
-    confidence: 0.85,
-    severity: 'critical',
-    safeMaskedContext: '...the master password is [SPOKEN_SECRET] for root...',
-    status: 'confirmed_true_positive',
-    charOffset: 28,
-    integrityHash: createMetadataHash('session-archived-99:rule-spoken-password:spoken_cue:0.85:28:44'),
-  },
-  {
-    id: 'evt-init-004',
-    sessionId: 'session-archived-98',
-    timestamp: STATIC_NOW - 1000 * 60 * 120,
-    ruleId: 'rule-credit-card',
-    ruleName: 'Credit Card Number (Luhn-checked)',
-    category: 'financial',
-    layer: 1,
-    confidence: 0.9,
-    severity: 'critical',
-    safeMaskedContext: '...corporate card [CREDIT_CARD] for subscription...',
-    status: 'confirmed_true_positive',
-    charOffset: 18,
-    integrityHash: createMetadataHash('session-archived-98:rule-credit-card:financial:0.9:18:36'),
-  },
-];
-
-const INITIAL_SESSION: MeetingSession = {
-  id: 'session-main-01',
-  title: 'Live Executive Incident Bridge',
-  startedAt: STATIC_NOW - 1000 * 60 * 14,
-  durationSeconds: 840,
+const createEmptySession = (): MeetingSession => ({
+  id: `session-${Date.now()}`,
+  title: 'Live Meeting Session',
+  startedAt: Date.now(),
+  durationSeconds: 0,
   source: 'microphone',
-  messages: [
-    {
-      id: 'msg-init-1',
-      speaker: 'Sarah (SRE Lead)',
-      timestamp: STATIC_NOW - 1000 * 60 * 12,
-      redactedText: 'Starting emergency sync for cluster us-east-1. Please do not post raw credentials in slack.',
-      detectedSpans: [],
-    },
-    {
-      id: 'msg-init-2',
-      speaker: 'Alex (Backend Eng)',
-      timestamp: STATIC_NOW - 1000 * 60 * 10,
-      redactedText: 'I am reading the backup AWS key [AWS_ACCESS_KEY] to inspect the dead-letter queue.',
-      detectedSpans: [
-        {
-          id: 'span-init-1',
-          ruleId: 'rule-aws-key',
-          ruleName: 'AWS Access Key ID',
-          category: 'api_keys',
-          layer: 1,
-          start: 35,
-          end: 51,
-          rawTextPreviewMasked: 'AKIA••••7X',
-          maskedReplacement: '[AWS_ACCESS_KEY]',
-          confidence: 0.95,
-          severity: 'critical',
-          contextSnippet: '...reading the backup AWS key [AWS_ACCESS_KEY] to inspect...',
-        },
-      ],
-    },
-  ],
-  totalRedactions: 1,
-  redactionsByCategory: { api_keys: 1 },
+  messages: [],
+  totalRedactions: 0,
+  redactionsByCategory: {},
   status: 'live',
-};
+});
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('live');
   const [deploymentTier, setDeploymentTier] = useState<AppDeploymentTier>('local_mvp');
   const [rules, setRules] = useState<GuardrailRule[]>(DEFAULT_GUARDRAIL_RULES);
-  const [allowlist, setAllowlist] = useState<string[]>(['sample_harmless_token_test']);
+  const [allowlist, setAllowlist] = useState<string[]>([]);
   const [activeLayers, setActiveLayers] = useState<{ layer1: boolean; layer2: boolean; layer3: boolean }>({
     layer1: true,
     layer2: true,
     layer3: true,
   });
 
-  // Current Active Meeting Session
-  const [currentSession, setCurrentSession] = useState<MeetingSession>(INITIAL_SESSION);
+  // Current Active Meeting Session (Clean & empty)
+  const [currentSession, setCurrentSession] = useState<MeetingSession>(createEmptySession);
 
   // Past Sessions
   const [sessions, setSessions] = useState<MeetingSession[]>([]);
 
   // Redaction Review Events Catalog
-  const [events, setEvents] = useState<RedactionEvent[]>(INITIAL_EVENTS);
+  const [events, setEvents] = useState<RedactionEvent[]>([]);
 
   // Export Modal State
   const [exportModalState, setExportModalState] = useState<{
@@ -169,10 +74,10 @@ export default function Page() {
       const savedSessions = localStorage.getItem('guardrail_sessions');
       if (savedSessions) setSessions(JSON.parse(savedSessions));
 
-      const savedTier = localStorage.getItem('guardrail_tier') as AppDeploymentTier;
-      if (savedTier) setDeploymentTier(savedTier);
-    } catch (e) {
-      console.warn('Could not read from localStorage:', e);
+      const savedTier = localStorage.getItem('guardrail_tier');
+      if (savedTier) setDeploymentTier(savedTier as AppDeploymentTier);
+    } catch {
+      // Use clean default state if storage is empty
     }
   }, []);
 
