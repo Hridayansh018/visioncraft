@@ -15,16 +15,17 @@ import {
   Hash
 } from 'lucide-react';
 import { AuditLogEntry, RedactionEvent } from '../lib/types';
+import { useAudioMeeting } from '../context/AudioMeetingContext';
 
 interface AuditLogViewProps {
-  events: RedactionEvent[];
-  sessionId: string;
+  events?: RedactionEvent[];
+  sessionId?: string;
 }
 
-export const AuditLogView: React.FC<AuditLogViewProps> = ({
-  events,
-  sessionId,
-}) => {
+export const AuditLogView: React.FC<AuditLogViewProps> = (props) => {
+  const context = useAudioMeeting();
+  const events = props.events || context.events;
+  const sessionId = props.sessionId || context.currentSession.id;
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterLayer, setFilterLayer] = useState<string>('all');
 
@@ -99,10 +100,10 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-            <FileText className="h-5 w-5 text-indigo-400" />
+            <FileText className="h-5 w-5 text-white" />
             Tamper-Evident Audit Log Viewer
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-white/50">
             Immutable SHA-256 cryptographically chained verification records. Zero raw payload stored.
           </p>
         </div>
@@ -110,7 +111,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-medium text-slate-300 transition-colors"
+            className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] hover:bg-white/10 px-3.5 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors"
           >
             <Download className="h-3.5 w-3.5" />
             <span>Export CSV</span>
@@ -118,7 +119,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({
 
           <button
             onClick={handleExportJSON}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors"
+            className="flex items-center gap-1.5 rounded-full bg-white text-black hover:bg-white/90 px-4 py-2 text-xs font-semibold shadow-sm transition-all transform hover:-translate-y-0.5"
           >
             <Download className="h-3.5 w-3.5" />
             <span>Export JSON Trail</span>
@@ -127,44 +128,44 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({
       </div>
 
       {/* Zero-Retention Stamp Card */}
-      <div className="rounded-xl border border-indigo-900/60 bg-indigo-950/20 p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-indigo-900/40 p-2.5 text-indigo-400 border border-indigo-700/50">
+      <div className="rounded-2xl border border-white/10 bg-[#07080a] p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="rounded-xl bg-white/10 p-3 text-white border border-white/15">
             <ShieldCheck className="h-6 w-6" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-slate-200">
+            <h4 className="text-sm font-semibold text-white">
               Zero-Retention Cryptographic Compliance Stamp
             </h4>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-white/50">
               Audit log integrity verified: each entry seals event metadata in an immutable hash chain without exposing secret content.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 font-mono text-xs text-emerald-400 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+        <div className="flex items-center gap-2 font-mono text-xs text-emerald-400 bg-[#000000] px-3.5 py-2 rounded-full border border-emerald-500/30">
           <CheckCircle2 className="h-4 w-4" />
           <span>CHAIN VALID (100% AUDITABLE)</span>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div className="rounded-2xl border border-white/10 bg-[#07080a] p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+          <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-white/40" />
           <input
             type="text"
             placeholder="Search audit trail by rule, hash, or details..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+            className="w-full rounded-xl border border-white/10 bg-[#000000] pl-10 pr-4 py-2 text-xs text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none font-mono"
           />
         </div>
 
         <select
           value={filterLayer}
           onChange={(e) => setFilterLayer(e.target.value)}
-          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 focus:border-indigo-500 focus:outline-none"
+          className="rounded-xl border border-white/10 bg-[#000000] px-3 py-2 text-xs font-medium text-white focus:border-white/30 focus:outline-none"
         >
           <option value="all">All Layers</option>
           <option value="1">Layer 1 (Regex)</option>
@@ -174,46 +175,46 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({
       </div>
 
       {/* Audit Log Table */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/90 shadow-sm overflow-hidden">
+      <div className="rounded-2xl border border-white/10 bg-[#07080a] shadow-sm overflow-hidden">
         {filteredLogs.length === 0 ? (
-          <div className="text-center py-12 text-slate-500 text-xs">
-            <Hash className="h-8 w-8 mx-auto mb-2 text-indigo-400 opacity-50" />
-            <p className="font-semibold text-slate-300">No Audit Records Yet</p>
-            <p className="text-slate-500 mt-0.5">Audit events will be logged here as live meetings are transcribed.</p>
+          <div className="text-center py-14 text-white/40 text-xs">
+            <Hash className="h-8 w-8 mx-auto mb-2 text-white/50 opacity-50" />
+            <p className="font-semibold text-white/70">No Audit Records Yet</p>
+            <p className="text-white/40 mt-0.5">Audit events will be logged here as live meetings are transcribed.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-mono text-[11px]">
-                  <th className="py-3 px-4">TIMESTAMP</th>
-                  <th className="py-3 px-4">EVENT TYPE</th>
-                  <th className="py-3 px-4">RULE ID / LAYER</th>
-                  <th className="py-3 px-4">METADATA DETAILS</th>
-                  <th className="py-3 px-4">PAYLOAD SHA-256 HASH</th>
-                  <th className="py-3 px-4">PREVIOUS LINK HASH</th>
+                <tr className="border-b border-white/10 bg-white/[0.02] text-white/50 font-mono text-[11px]">
+                  <th className="py-3.5 px-5">TIMESTAMP</th>
+                  <th className="py-3.5 px-5">EVENT TYPE</th>
+                  <th className="py-3.5 px-5">RULE ID / LAYER</th>
+                  <th className="py-3.5 px-5">METADATA DETAILS</th>
+                  <th className="py-3.5 px-5">PAYLOAD SHA-256 HASH</th>
+                  <th className="py-3.5 px-5">PREVIOUS LINK HASH</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-white/[0.06] font-mono">
                 {filteredLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-4 text-slate-400 whitespace-nowrap text-[11px]">
+                  <tr key={log.id} className="hover:bg-white/[0.03] transition-colors">
+                    <td className="py-3.5 px-5 text-white/50 whitespace-nowrap text-[11px]">
                       {new Date(log.timestamp).toLocaleTimeString()}
                     </td>
-                    <td className="py-3 px-4 text-emerald-400 font-semibold whitespace-nowrap text-[11px]">
+                    <td className="py-3.5 px-5 text-emerald-400 font-semibold whitespace-nowrap text-[11px]">
                       {log.eventType}
                     </td>
-                    <td className="py-3 px-4 whitespace-nowrap text-[11px]">
-                      <span className="text-slate-200">{log.ruleId}</span>
-                      <span className="ml-1 text-indigo-400">(L{log.layer})</span>
+                    <td className="py-3.5 px-5 whitespace-nowrap text-[11px]">
+                      <span className="text-white">{log.ruleId}</span>
+                      <span className="ml-1 text-white/50">(L{log.layer})</span>
                     </td>
-                    <td className="py-3 px-4 font-sans text-slate-300 text-xs max-w-xs truncate">
+                    <td className="py-3.5 px-5 font-sans text-white/80 text-xs max-w-xs truncate">
                       {log.details}
                     </td>
-                    <td className="py-3 px-4 text-indigo-300 text-[11px] whitespace-nowrap">
+                    <td className="py-3.5 px-5 text-white text-[11px] whitespace-nowrap font-mono">
                       {log.payloadHash}
                     </td>
-                    <td className="py-3 px-4 text-slate-500 text-[11px] whitespace-nowrap">
+                    <td className="py-3.5 px-5 text-white/40 text-[11px] whitespace-nowrap">
                       {log.previousHash.slice(0, 16)}...
                     </td>
                   </tr>

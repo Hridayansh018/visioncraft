@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { 
   ShieldCheck, 
   Mic, 
@@ -10,128 +12,91 @@ import {
   FlaskConical, 
   FileText, 
   Cloud,
-  Lock,
-  Radio
+  Radio,
+  Home
 } from 'lucide-react';
+import { useAudioMeeting } from '../context/AudioMeetingContext';
 
-export type ActiveTab = 'live' | 'dashboard' | 'review' | 'rules' | 'eval' | 'audit' | 'architecture';
-export type AppDeploymentTier = 'local_mvp' | 'cloud_saas' | 'enterprise_vpc';
+export const Navbar: React.FC = () => {
+  const pathname = usePathname();
+  const { isCapturing, events } = useAudioMeeting();
 
-interface NavbarProps {
-  activeTab: ActiveTab;
-  setActiveTab: (tab: ActiveTab) => void;
-  deploymentTier: AppDeploymentTier;
-  setDeploymentTier: (tier: AppDeploymentTier) => void;
-  isCapturing: boolean;
-  caughtCount: number;
-}
+  const pendingReviewsCount = events.filter((e) => e.status === 'pending_review').length;
 
-export const Navbar: React.FC<NavbarProps> = ({
-  activeTab,
-  setActiveTab,
-  deploymentTier,
-  setDeploymentTier,
-  isCapturing,
-  caughtCount,
-}) => {
-  const tabs = [
-    { id: 'live', label: 'Live Meeting', icon: Mic, badge: isCapturing ? 'LIVE' : undefined },
-    { id: 'dashboard', label: 'Dashboard & KPIs', icon: LayoutDashboard },
-    { id: 'review', label: 'Review Queue', icon: CheckSquare, count: caughtCount },
-    { id: 'rules', label: 'Rules Manager', icon: Sliders },
-    { id: 'eval', label: 'Quality & Eval', icon: FlaskConical },
-    { id: 'audit', label: 'Audit Log', icon: FileText },
-    { id: 'architecture', label: 'SaaS Architecture & Cost', icon: Cloud },
+  const navItems = [
+    { href: '/', label: 'Overview', icon: Home },
+    { href: '/live', label: 'Live Meeting', icon: Mic, badge: isCapturing ? 'LIVE' : undefined },
+    { href: '/dashboard', label: 'Dashboard & KPIs', icon: LayoutDashboard },
+    { href: '/review', label: 'Review Queue', icon: CheckSquare, count: pendingReviewsCount },
+    { href: '/rules', label: 'Rules Manager', icon: Sliders },
+    { href: '/eval', label: 'Quality & Eval', icon: FlaskConical },
+    { href: '/audit', label: 'Audit Log', icon: FileText },
+    { href: '/architecture', label: 'SaaS Architecture', icon: Cloud },
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-[#262a34] bg-[#0A0E17]/95 backdrop-blur-md text-[#dfe2ef]">
-      {/* Top Banner: Zero-Retention Status & Deployment Tier */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-xs border-b border-[#262a34]/80 bg-[#181b25]/80">
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#4fdbc8] opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#4fdbc8]"></span>
-          </span>
-          <span className="font-mono font-medium text-[#4fdbc8] flex items-center gap-1.5">
-            <Lock className="w-3.5 h-3.5 inline" /> ZERO-RETENTION INVARIANT:
-          </span>
-          <span className="text-[#c2c6d6] hidden sm:inline">
-            Raw transcribed audio/text lives transiently in RAM (<span className="text-[#71f8e4] font-mono">0x00</span> zero-fill wipe), never persisted to disk or cloud.
-          </span>
-        </div>
-
-        {/* Tier Selector */}
-        <div className="flex items-center gap-2">
-          <span className="text-[#8c909f] font-medium">Deployment Mode:</span>
-          <select
-            id="deployment-tier-select"
-            value={deploymentTier}
-            onChange={(e) => setDeploymentTier(e.target.value as AppDeploymentTier)}
-            className="rounded-lg border border-[#424754] bg-[#1c1f29] px-3 py-1 text-xs font-medium text-[#dfe2ef] focus:border-[#4d8eff] focus:ring-1 focus:ring-[#4d8eff] focus:outline-none cursor-pointer"
-          >
-            <option value="local_mvp">Phase 0: Fully Local On-Prem (faster-whisper + Presidio)</option>
-            <option value="cloud_saas">Phase 2: Multi-Tenant Cloud SaaS (Zero-Retention Data Plane)</option>
-            <option value="enterprise_vpc">Phase 3: Enterprise Dedicated Single-Tenant VPC</option>
-          </select>
-        </div>
-      </div>
-
+    <header className="sticky top-0 z-40 w-full border-b border-white/[0.08] bg-[#000000]/95 backdrop-blur-2xl text-[#f1f3f9]">
       {/* Main Header & Nav Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3.5 sm:px-6 max-w-7xl mx-auto">
         {/* Brand */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#4d8eff]/15 border border-[#4d8eff]/30 text-[#4d8eff] shadow-sm">
-            <ShieldCheck className="h-6 w-6" />
+        <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 border border-white/20 text-white shadow-sm backdrop-blur-md">
+            <ShieldCheck className="h-4.5 w-4.5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold tracking-tight text-[#dfe2ef]">
-                VisionCraft Guardrail
-              </h1>
-              <span className="rounded-md bg-[#181b25] px-2 py-0.5 text-[10px] font-mono font-semibold text-[#adc6ff] border border-[#3e495d]">
-                v2.0 Core
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold tracking-tight text-white">
+                VisionCraft
+              </span>
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-mono font-medium text-white/70 border border-white/15">
+                Guardrail
               </span>
             </div>
-            <p className="text-xs text-[#8c909f]">
-              Real-time PII, Secrets & Credentials Redaction for Meeting Transcripts
-            </p>
           </div>
-        </div>
+        </Link>
 
         {/* Navigation Tabs */}
         <nav className="flex flex-wrap items-center gap-1.5 overflow-x-auto">
-          {tabs.map((tab) => {
+          {navItems.map((tab) => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const isActive = pathname === tab.href;
             return (
-              <button
-                key={tab.id}
-                id={`nav-tab-${tab.id}`}
-                onClick={() => setActiveTab(tab.id as ActiveTab)}
-                className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-medium transition-all whitespace-nowrap ${
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
                   isActive
-                    ? 'bg-[#4d8eff] text-[#00285d] font-semibold shadow-md shadow-[#4d8eff]/20'
-                    : 'text-[#c2c6d6] hover:bg-[#262a34] hover:text-[#dfe2ef]'
+                    ? 'bg-white text-black font-semibold shadow-md'
+                    : 'text-white/70 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Icon className={`h-4 w-4 ${isActive ? 'text-[#00285d]' : 'text-[#8c909f]'}`} />
+                <Icon className={`h-3.5 w-3.5 ${isActive ? 'text-black' : 'text-white/60'}`} />
                 <span>{tab.label}</span>
                 {tab.badge && (
-                  <span className="ml-1 flex items-center gap-1 rounded-full bg-[#ef4444] px-1.5 py-0.5 text-[9px] font-bold text-white uppercase animate-pulse">
-                    <Radio className="w-2.5 h-2.5" />
+                  <span className="ml-1 flex items-center gap-1 rounded-full bg-rose-600 px-1.5 py-0.5 text-[9px] font-bold text-white uppercase animate-pulse">
+                    <Radio className="w-2 h-2" />
                     {tab.badge}
                   </span>
                 )}
                 {typeof tab.count === 'number' && tab.count > 0 && (
-                  <span className="ml-1 rounded-full bg-[#1c1f29] px-2 py-0.5 text-[10px] font-semibold text-[#4d8eff] border border-[#4d8eff]/30">
+                  <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-semibold ${
+                    isActive ? 'bg-black/15 text-black font-bold' : 'bg-white/10 text-white'
+                  }`}>
                     {tab.count}
                   </span>
                 )}
-              </button>
+              </Link>
             );
           })}
         </nav>
+
+        {/* Global Live Background Recording Pill */}
+        {isCapturing && (
+          <div className="flex items-center gap-1.5 text-emerald-400 font-mono text-[11px] bg-white/[0.05] px-3 py-1 rounded-full border border-emerald-500/30 animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>RECORDING ACTIVE</span>
+          </div>
+        )}
       </div>
     </header>
   );

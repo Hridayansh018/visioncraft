@@ -37,7 +37,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ session, format, onClo
     content += `| **Session Title** | ${session.title} |\n`;
     content += `| **Date / Time** | ${new Date(session.startedAt).toLocaleString()} |\n`;
     content += `| **Redactions Intercepted** | ${session.totalRedactions} |\n`;
-    content += `| **Security Compliance** | Section 1 Zero-Retention Compliant |\n\n`;
+    content += `| **Security Compliance** | Zero-Retention In-Memory Guardrail Compliant |\n\n`;
     content += `## Meeting Transcript\n\n`;
 
     session.messages.forEach((msg) => {
@@ -95,26 +95,26 @@ export const ExportModal: React.FC<ExportModalProps> = ({ session, format, onClo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="w-full max-w-2xl rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-indigo-400" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+      <div className="w-full max-w-2xl rounded-3xl border border-white/15 bg-[#0c0d12] p-6 sm:p-8 shadow-2xl space-y-4">
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex items-center gap-2.5">
+            <FileText className="h-5 w-5 text-white" />
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">
               Export Sanitized Transcript ({format.toUpperCase()})
             </h3>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
+          <button onClick={onClose} className="text-white/40 hover:text-white p-1 rounded-md hover:bg-white/10 transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-80 overflow-y-auto font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
+        <div className="rounded-2xl border border-white/10 bg-[#000000] p-4 max-h-80 overflow-y-auto font-mono text-xs text-white/80 whitespace-pre-wrap leading-relaxed">
           {content}
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-slate-800 text-xs">
-          <span className="text-slate-400 flex items-center gap-1.5">
+        <div className="flex items-center justify-between pt-4 border-t border-white/10 text-xs">
+          <span className="text-white/50 flex items-center gap-1.5">
             <ShieldCheck className="h-4 w-4 text-emerald-400" />
             Sanitized against all active guardrail rules.
           </span>
@@ -122,15 +122,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({ session, format, onClo
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 font-medium text-slate-200 transition-colors"
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] hover:bg-white/10 px-3.5 py-2 font-medium text-white transition-colors"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-              <span>{copied ? 'Copied!' : 'Copy'}</span>
+              <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
 
             <button
               onClick={handleDownload}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3.5 py-1.5 font-semibold text-white shadow-sm transition-colors"
+              className="flex items-center gap-1.5 rounded-full bg-white text-black hover:bg-white/90 px-4 py-2 font-semibold shadow-sm transition-all transform hover:-translate-y-0.5"
             >
               <Download className="h-3.5 w-3.5" />
               <span>Download File</span>

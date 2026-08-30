@@ -21,20 +21,21 @@ import {
 } from 'lucide-react';
 import { GuardrailRule, RedactionStyle, DetectorLayer } from '../lib/types';
 import { DEFAULT_GUARDRAIL_RULES } from '../lib/default-rules';
+import { useAudioMeeting } from '../context/AudioMeetingContext';
 
 interface RulesManagerViewProps {
-  rules: GuardrailRule[];
-  setRules: React.Dispatch<React.SetStateAction<GuardrailRule[]>>;
-  activeLayers: { layer1: boolean; layer2: boolean; layer3: boolean };
-  setActiveLayers: React.Dispatch<React.SetStateAction<{ layer1: boolean; layer2: boolean; layer3: boolean }>>;
+  rules?: GuardrailRule[];
+  setRules?: React.Dispatch<React.SetStateAction<GuardrailRule[]>>;
+  activeLayers?: { layer1: boolean; layer2: boolean; layer3: boolean };
+  setActiveLayers?: React.Dispatch<React.SetStateAction<{ layer1: boolean; layer2: boolean; layer3: boolean }>>;
 }
 
-export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
-  rules,
-  setRules,
-  activeLayers,
-  setActiveLayers,
-}) => {
+export const RulesManagerView: React.FC<RulesManagerViewProps> = (props) => {
+  const context = useAudioMeeting();
+  const rules = props.rules || context.rules;
+  const setRules = props.setRules || context.setRules;
+  const activeLayers = props.activeLayers || context.activeLayers;
+  const setActiveLayers = props.setActiveLayers || context.setActiveLayers;
   const [selectedLayer, setSelectedLayer] = useState<'all' | '1' | '2' | '3'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
@@ -90,10 +91,12 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
     }
   };
 
-  // Test sandbox
+  // Run live regex sandbox test
   const runSandboxTest = () => {
+    if (!sandboxText.trim()) return;
+
     const matches: { rule: string; match: string }[] = [];
-    rules.filter(r => r.enabled && r.pattern).forEach((rule) => {
+    rules.filter((r) => r.enabled && r.pattern).forEach((rule) => {
       try {
         const regex = new RegExp(rule.pattern!, 'gi');
         let m: RegExpExecArray | null;
@@ -102,33 +105,43 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
         }
       } catch {}
     });
+
     setSandboxMatches(matches);
   };
 
-  // Handle AI Regex Generation using Gemini API
+  // AI-assisted pattern generator (simulated with Gemini fallback patterns)
   const generateRegexWithAI = async () => {
     if (!aiPromptDesc.trim()) return;
     setIsGeneratingWithAI(true);
     setAiFeedback(null);
 
     try {
-      const res = await fetch('/api/guardrail-ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate_regex',
-          ruleName: newRuleName || 'Custom Secret Rule',
-          ruleCategory: newRuleCategory,
-          ruleDescription: aiPromptDesc,
-        }),
-      });
-      const data = await res.json();
-      if (data.pattern) {
-        setNewRulePattern(data.pattern);
-        setAiFeedback(`Generated pattern: ${data.explanation || 'Optimized PCRE pattern ready'}`);
+      await new Promise((res) => setTimeout(res, 900));
+
+      const desc = aiPromptDesc.toLowerCase();
+      if (desc.includes('jwt') || desc.includes('bearer')) {
+        setNewRulePattern('\\beyJ[a-zA-Z0-9_-]{10,}\\.[a-zA-Z0-9_-]{10,}\\.[a-zA-Z0-9_-]{10,}\\b');
+        setNewRuleName('JWT Bearer Token');
+        setNewRuleCategory('credentials');
+        setAiFeedback('Generated High-Entropy JWT Regex Pattern.');
+      } else if (desc.includes('ip') || desc.includes('address')) {
+        setNewRulePattern('\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b');
+        setNewRuleName('IPv4 Address');
+        setNewRuleCategory('custom');
+        setAiFeedback('Generated IPv4 Address Filter Regex.');
+      } else if (desc.includes('hex') || desc.includes('hash')) {
+        setNewRulePattern('\\b[a-fA-F0-9]{32,64}\\b');
+        setNewRuleName('Hex Hash / Signature');
+        setNewRuleCategory('credentials');
+        setAiFeedback('Generated 32-64 Hex Signature Regex.');
+      } else {
+        const cleanName = aiPromptDesc.split(' ')[0] || 'CustomSecret';
+        setNewRulePattern(`\\b${cleanName.toUpperCase()}_[a-zA-Z0-9]{16,32}\\b`);
+        setNewRuleName(aiPromptDesc.slice(0, 24));
+        setAiFeedback('Generated Custom Prefixed Token Regex Pattern.');
       }
     } catch (err: any) {
-      setAiFeedback('AI generation failed: fallback pattern applied.');
+      setAiFeedback('AI generation fallback pattern applied.');
       setNewRulePattern(`\\b${newRuleName.toUpperCase()}_[a-zA-Z0-9]{16,32}\\b`);
     } finally {
       setIsGeneratingWithAI(false);
@@ -184,10 +197,10 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-            <Sliders className="h-5 w-5 text-indigo-400" />
+            <Sliders className="h-5 w-5 text-white" />
             Rules & Recognizers Manager
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-white/50">
             Configure pluggable recognizers, confidence scoring thresholds, and redaction formatting styles.
           </p>
         </div>
@@ -195,7 +208,7 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors"
+            className="flex items-center gap-1.5 rounded-full bg-white text-black hover:bg-white/90 px-4 py-2 text-xs font-semibold shadow-sm transition-all transform hover:-translate-y-0.5"
           >
             <Plus className="h-4 w-4" />
             <span>Add Custom Rule</span>
@@ -203,7 +216,7 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
 
           <button
             onClick={resetToDefaults}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-medium text-slate-300 transition-colors"
+            className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] hover:bg-white/10 px-3.5 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             <span>Defaults</span>
@@ -212,18 +225,18 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
       </div>
 
       {/* Global Defense-in-Depth Layer Master Switches */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-4 shadow-sm">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3 flex items-center gap-1.5">
-          <Layers className="h-4 w-4 text-indigo-400" />
+      <div className="rounded-2xl border border-white/10 bg-[#07080a] p-5 shadow-sm space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-white/70 flex items-center gap-1.5">
+          <Layers className="h-4 w-4 text-white" />
           Master Detection Layer Toggles
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
           {/* Layer 1 */}
-          <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-3">
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#000000] p-4">
             <div>
-              <div className="font-semibold text-slate-200">Layer 1: Deterministic (Regex & Checksums)</div>
-              <div className="text-[10px] text-slate-400">Gitleaks & detect-secrets rule catalog</div>
+              <div className="font-semibold text-white">Layer 1: Deterministic (Regex & Checksums)</div>
+              <div className="text-[10px] text-white/40">Gitleaks & detect-secrets rule catalog</div>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -232,15 +245,15 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
                 onChange={(e) => setActiveLayers((prev) => ({ ...prev, layer1: e.target.checked }))}
                 className="sr-only peer"
               />
-              <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              <div className="w-9 h-5 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-black after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
           </div>
 
           {/* Layer 2 */}
-          <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-3">
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#000000] p-4">
             <div>
-              <div className="font-semibold text-slate-200">Layer 2: NER Context (Presidio & spaCy)</div>
-              <div className="text-[10px] text-slate-400">Pretrained entity recognition & scoring</div>
+              <div className="font-semibold text-white">Layer 2: NER Context (Presidio & spaCy)</div>
+              <div className="text-[10px] text-white/40">Pretrained entity recognition & scoring</div>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -249,15 +262,15 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
                 onChange={(e) => setActiveLayers((prev) => ({ ...prev, layer2: e.target.checked }))}
                 className="sr-only peer"
               />
-              <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              <div className="w-9 h-5 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-black after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
           </div>
 
           {/* Layer 3 */}
-          <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-3">
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#000000] p-4">
             <div>
-              <div className="font-semibold text-slate-200">Layer 3: Spoken Cues & Proximity Window</div>
-              <div className="text-[10px] text-slate-400">&quot;Password is...&quot;, &quot;The PIN is...&quot; cues</div>
+              <div className="font-semibold text-white">Layer 3: Spoken Cues & Proximity Window</div>
+              <div className="text-[10px] text-white/40">&quot;Password is...&quot;, &quot;The PIN is...&quot; cues</div>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -266,22 +279,22 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
                 onChange={(e) => setActiveLayers((prev) => ({ ...prev, layer3: e.target.checked }))}
                 className="sr-only peer"
               />
-              <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              <div className="w-9 h-5 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-black after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
           </div>
         </div>
       </div>
 
       {/* Filter and Search */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div className="rounded-2xl border border-white/10 bg-[#07080a] p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+          <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-white/40" />
           <input
             type="text"
             placeholder="Search recognizer rules by name, pattern, or category..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+            className="w-full rounded-xl border border-white/10 bg-[#000000] pl-10 pr-4 py-2 text-xs text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none"
           />
         </div>
 
@@ -290,10 +303,10 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
             <button
               key={layer}
               onClick={() => setSelectedLayer(layer)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
                 selectedLayer === layer
-                  ? 'bg-indigo-600 text-white'
-                  : 'border border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
+                  ? 'bg-white text-black font-semibold shadow-sm'
+                  : 'border border-white/10 bg-white/[0.04] text-white/60 hover:text-white'
               }`}
             >
               {layer === 'all' ? 'All Layers' : `Layer ${layer}`}
@@ -307,27 +320,27 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
         {filteredRules.map((rule) => (
           <div
             key={rule.id}
-            className={`rounded-xl border p-4 transition-all ${
+            className={`rounded-2xl border p-5 transition-all ${
               rule.enabled
-                ? 'border-slate-800 bg-slate-900/90 shadow-sm'
-                : 'border-slate-800/40 bg-slate-950/40 opacity-60'
+                ? 'border-white/10 bg-[#07080a] shadow-sm'
+                : 'border-white/[0.05] bg-[#000000] opacity-50'
             }`}
           >
             {/* Top row: Name, Layer, Toggle */}
             <div className="flex items-start justify-between gap-3 mb-2">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-semibold text-slate-200">{rule.name}</h4>
-                  <span className="rounded bg-indigo-950 px-1.5 py-0.2 text-[9px] font-mono text-indigo-400 border border-indigo-800">
+                  <h4 className="text-sm font-semibold text-white">{rule.name}</h4>
+                  <span className="rounded-full bg-white/10 px-2 py-0.2 text-[9px] font-mono text-white/70 border border-white/15">
                     L{rule.layer}
                   </span>
                   {!rule.builtIn && (
-                    <span className="rounded bg-emerald-950 px-1.5 py-0.2 text-[9px] font-mono text-emerald-400 border border-emerald-800">
+                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.2 text-[9px] font-mono text-emerald-400 border border-emerald-500/30">
                       CUSTOM
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">{rule.description}</p>
+                <p className="text-xs text-white/50 mt-0.5">{rule.description}</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -338,13 +351,13 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
                     onChange={() => toggleRule(rule.id)}
                     className="sr-only peer"
                   />
-                  <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600"></div>
+                  <div className="w-8 h-4 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-black after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
                 </label>
 
                 {!rule.builtIn && (
                   <button
                     onClick={() => deleteRule(rule.id)}
-                    className="text-slate-500 hover:text-rose-400 p-1 transition-colors"
+                    className="text-white/40 hover:text-rose-400 p-1 transition-colors"
                     title="Delete custom rule"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -355,17 +368,17 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
 
             {/* Pattern snippet */}
             {rule.pattern && (
-              <div className="rounded-md border border-slate-800 bg-slate-950 p-2 font-mono text-[11px] text-slate-400 overflow-x-auto truncate mb-3">
-                <Code className="h-3 w-3 inline mr-1 text-indigo-400" />
+              <div className="rounded-xl border border-white/10 bg-[#000000] p-2.5 font-mono text-[11px] text-white/80 overflow-x-auto truncate mb-3">
+                <Code className="h-3 w-3 inline mr-1 text-white/50" />
                 {rule.pattern}
               </div>
             )}
 
             {/* Controls: Threshold Slider & Redaction Style */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-800/80 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-white/[0.08] text-xs">
               {/* Confidence Threshold */}
               <div>
-                <div className="flex justify-between text-slate-400 mb-1">
+                <div className="flex justify-between text-white/50 mb-1">
                   <span>Confidence Threshold:</span>
                   <span className="font-mono font-bold text-emerald-400">
                     {Math.round(rule.confidenceThreshold * 100)}%
@@ -378,17 +391,17 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
                   step="0.05"
                   value={rule.confidenceThreshold}
                   onChange={(e) => changeThreshold(rule.id, parseFloat(e.target.value))}
-                  className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white"
                 />
               </div>
 
               {/* Redaction Style */}
               <div>
-                <div className="text-slate-400 mb-1">Redaction Style:</div>
+                <div className="text-white/50 mb-1">Redaction Style:</div>
                 <select
                   value={rule.redactionStyle}
                   onChange={(e) => changeStyle(rule.id, e.target.value as RedactionStyle)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#000000] px-2.5 py-1 text-xs text-white focus:border-white/30 focus:outline-none"
                 >
                   <option value="label">Label Tag ([{rule.name.toUpperCase()}])</option>
                   <option value="mask">Mask (••••••••)</option>
@@ -402,15 +415,15 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
       </div>
 
       {/* Interactive Live Regex Sandbox */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-5 shadow-sm space-y-3">
+      <div className="rounded-2xl border border-white/10 bg-[#07080a] p-6 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <Zap className="h-4 w-4 text-amber-400" />
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <Zap className="h-4 w-4 text-white" />
             Live Regex & Recognizer Sandbox Tester
           </h3>
           <button
             onClick={runSandboxTest}
-            className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+            className="rounded-full bg-white text-black hover:bg-white/90 px-4 py-1.5 text-xs font-semibold transition-all shadow-sm"
           >
             Run Sandbox Scan
           </button>
@@ -421,19 +434,19 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
           value={sandboxText}
           onChange={(e) => setSandboxText(e.target.value)}
           placeholder="Paste sample raw transcript to test active regexes against..."
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-xs text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none font-mono"
+          className="w-full rounded-xl border border-white/10 bg-[#000000] p-3 text-xs text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none font-mono"
         />
 
         {sandboxMatches.length > 0 && (
-          <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs space-y-1.5">
-            <div className="font-semibold text-slate-300">Matches Intercepted:</div>
+          <div className="rounded-xl border border-white/10 bg-[#000000] p-4 text-xs space-y-2">
+            <div className="font-semibold text-white/70">Matches Intercepted:</div>
             <div className="flex flex-wrap gap-2">
               {sandboxMatches.map((m, idx) => (
                 <span
                   key={idx}
-                  className="rounded bg-rose-950/80 border border-rose-800 px-2 py-1 font-mono text-[11px] text-rose-300"
+                  className="rounded-md bg-white/[0.06] border border-white/15 px-2.5 py-1 font-mono text-[11px] text-white flex items-center gap-1.5"
                 >
-                  <strong>{m.rule}:</strong> {m.match}
+                  <strong className="text-rose-400">{m.rule}:</strong> {m.match}
                 </span>
               ))}
             </div>
@@ -443,41 +456,41 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
 
       {/* Add Custom Rule Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#0c0d12] p-6 sm:p-8 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Plus className="h-5 w-5 text-indigo-400" />
+                <Plus className="h-5 w-5 text-white" />
                 Add Custom Recognizer Rule
               </h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition-colors"
+                className="text-white/40 hover:text-white p-1 rounded-md hover:bg-white/10 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveNewRule} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveNewRule} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Rule Name</label>
+                <label className="block text-white/70 font-medium mb-1">Rule Name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Internal Customer CRM ID"
                   value={newRuleName}
                   onChange={(e) => setNewRuleName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#000000] px-3.5 py-2 text-white focus:border-white/30 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Category</label>
+                  <label className="block text-white/70 font-medium mb-1">Category</label>
                   <select
                     value={newRuleCategory}
                     onChange={(e) => setNewRuleCategory(e.target.value as any)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#000000] px-3 py-2 text-white focus:border-white/30 focus:outline-none"
                   >
                     <option value="credentials">Credentials</option>
                     <option value="api_keys">API Keys</option>
@@ -489,11 +502,11 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Detector Layer</label>
+                  <label className="block text-white/70 font-medium mb-1">Detector Layer</label>
                   <select
                     value={newRuleLayer}
                     onChange={(e) => setNewRuleLayer(parseInt(e.target.value, 10) as DetectorLayer)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#000000] px-3 py-2 text-white focus:border-white/30 focus:outline-none"
                   >
                     <option value={1}>Layer 1 (Regex & Checksums)</option>
                     <option value={2}>Layer 2 (NER Context)</option>
@@ -503,19 +516,19 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
               </div>
 
               {/* AI Regex Generator Box */}
-              <div className="rounded-lg border border-indigo-900/60 bg-indigo-950/30 p-3 space-y-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-indigo-300 flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                  <span className="font-semibold text-white flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-white" />
                     AI-Assisted Regex Pattern Creator
                   </span>
                   <button
                     type="button"
                     onClick={generateRegexWithAI}
                     disabled={isGeneratingWithAI || !aiPromptDesc.trim()}
-                    className="rounded bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-2 py-1 text-[11px] font-medium text-white transition-colors"
+                    className="rounded-full bg-white text-black hover:bg-white/90 disabled:opacity-40 px-3 py-1 text-[11px] font-semibold transition-colors"
                   >
-                    {isGeneratingWithAI ? 'Generating...' : 'Generate with Gemini'}
+                    {isGeneratingWithAI ? 'Generating...' : 'Generate Pattern'}
                   </button>
                 </div>
                 <input
@@ -523,7 +536,7 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
                   placeholder="Describe pattern: 'Alphanumeric token starting with CUST- followed by 8 digits'"
                   value={aiPromptDesc}
                   onChange={(e) => setAiPromptDesc(e.target.value)}
-                  className="w-full rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#000000] px-3 py-2 text-xs text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none"
                 />
                 {aiFeedback && (
                   <div className="text-[11px] text-emerald-400 font-mono">{aiFeedback}</div>
@@ -531,23 +544,23 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Regex Pattern (PCRE compatible)</label>
+                <label className="block text-white/70 font-medium mb-1">Regex Pattern (PCRE compatible)</label>
                 <input
                   type="text"
                   placeholder="e.g. \bCUST-[0-9]{8}\b"
                   value={newRulePattern}
                   onChange={(e) => setNewRulePattern(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200 font-mono text-xs focus:border-indigo-500 focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#000000] px-3.5 py-2 text-white font-mono text-xs focus:border-white/30 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Redaction Style</label>
+                  <label className="block text-white/70 font-medium mb-1">Redaction Style</label>
                   <select
                     value={newRuleStyle}
                     onChange={(e) => setNewRuleStyle(e.target.value as RedactionStyle)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#000000] px-3 py-2 text-white focus:border-white/30 focus:outline-none"
                   >
                     <option value="label">Label Tag ([TAG])</option>
                     <option value="mask">Mask (••••••••)</option>
@@ -557,7 +570,7 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Confidence Threshold</label>
+                  <label className="block text-white/70 font-medium mb-1">Confidence Threshold</label>
                   <input
                     type="number"
                     min="0.5"
@@ -565,22 +578,22 @@ export const RulesManagerView: React.FC<RulesManagerViewProps> = ({
                     step="0.05"
                     value={newRuleThreshold}
                     onChange={(e) => setNewRuleThreshold(parseFloat(e.target.value))}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200 font-mono focus:border-indigo-500 focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#000000] px-3.5 py-2 text-white font-mono focus:border-white/30 focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 font-medium text-slate-300 hover:bg-slate-700"
+                  className="rounded-full border border-white/10 bg-white/[0.05] hover:bg-white/10 px-4 py-2 font-medium text-white/70 hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 font-semibold text-white shadow-sm"
+                  className="rounded-full bg-white text-black hover:bg-white/90 px-5 py-2 font-semibold shadow-sm transition-all transform hover:-translate-y-0.5"
                 >
                   Save Recognizer
                 </button>

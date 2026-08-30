@@ -24,16 +24,17 @@ import { EvalTestCase, EvalResult, GuardrailRule } from '../lib/types';
 import { BENCHMARK_EVAL_DATASET, generateSyntheticBatch } from '../lib/synthetic-data';
 import { processGuardrailPipeline } from '../lib/engine';
 import { runEngineUnitTests, TestReport } from '../lib/engine.test';
+import { useAudioMeeting } from '../context/AudioMeetingContext';
 
 interface EvaluationViewProps {
-  rules: GuardrailRule[];
-  activeLayers: { layer1: boolean; layer2: boolean; layer3: boolean };
+  rules?: GuardrailRule[];
+  activeLayers?: { layer1: boolean; layer2: boolean; layer3: boolean };
 }
 
-export const EvaluationView: React.FC<EvaluationViewProps> = ({
-  rules,
-  activeLayers,
-}) => {
+export const EvaluationView: React.FC<EvaluationViewProps> = (props) => {
+  const context = useAudioMeeting();
+  const rules = props.rules || context.rules;
+  const activeLayers = props.activeLayers || context.activeLayers;
   const [evalSubTab, setEvalSubTab] = useState<'benchmark' | 'unit_tests'>('benchmark');
   const [dataset, setDataset] = useState<EvalTestCase[]>(BENCHMARK_EVAL_DATASET);
   const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
@@ -103,64 +104,71 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
             }
           });
 
-          // Check if any extra false detections
-          if (detectedSpans.length > expectedSpans.length) {
-            const extra = detectedSpans.length - expectedSpans.length;
-            totalFalsePositives += extra;
-          }
+          // Check if any detected span was spurious (false positive)
+          detectedSpans.forEach((det) => {
+            const isSpurious = !expectedSpans.some(
+              (exp) => (det.start <= exp.end && det.end >= exp.start) || det.ruleName.toUpperCase().includes(exp.label)
+            );
+            if (isSpurious) {
+              totalFalsePositives++;
+              const cat = det.category || 'general';
+              if (categoryStats[cat]) categoryStats[cat].fp++;
+            }
+          });
         }
       });
 
-      const precision = totalTruePositives + totalFalsePositives > 0
-        ? totalTruePositives / (totalTruePositives + totalFalsePositives)
-        : 1.0;
+      const precision =
+        totalTruePositives + totalFalsePositives > 0
+          ? Math.round((totalTruePositives / (totalTruePositives + totalFalsePositives)) * 100)
+          : 100;
 
-      const recall = totalTruePositives + totalFalseNegatives > 0
-        ? totalTruePositives / (totalTruePositives + totalFalseNegatives)
-        : 1.0;
+      const recall =
+        totalTruePositives + totalFalseNegatives > 0
+          ? Math.round((totalTruePositives / (totalTruePositives + totalFalseNegatives)) * 100)
+          : 100;
 
-      const f1Score = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+      const f1Score =
+        precision + recall > 0 ? Math.round((2 * (precision * recall)) / (precision + recall)) : 0;
+
+      const avgLatencyMs = Math.round(totalLatency / dataset.length);
 
       const categoryBreakdown = Object.entries(categoryStats).map(([cat, stats]) => {
-        const catPrec = stats.tp + stats.fp > 0 ? stats.tp / (stats.tp + stats.fp) : 1.0;
-        const catRec = stats.tp + stats.fn > 0 ? stats.tp / (stats.tp + stats.fn) : 1.0;
+        const p = stats.tp + stats.fp > 0 ? Math.round((stats.tp / (stats.tp + stats.fp)) * 100) : 100;
+        const r = stats.tp + stats.fn > 0 ? Math.round((stats.tp / (stats.tp + stats.fn)) * 100) : 100;
         return {
-          category: cat.toUpperCase(),
-          precision: Math.round(catPrec * 100),
-          recall: Math.round(catRec * 100),
+          category: cat,
+          precision: p,
+          recall: r,
           count: stats.count,
         };
       });
 
       setEvalResult({
-        totalCases: dataset.length,
+        precision,
+        recall,
+        f1Score,
         truePositives: totalTruePositives,
         falsePositives: totalFalsePositives,
         falseNegatives: totalFalseNegatives,
-        precision: Math.round(precision * 1000) / 10,
-        recall: Math.round(recall * 1000) / 10,
-        f1Score: Math.round(f1Score * 1000) / 10,
-        avgLatencyMs: Math.round((totalLatency / dataset.length) * 10) / 10,
+        avgLatencyMs,
         categoryBreakdown,
-        timestamp: Date.now(),
       });
 
       setIsRunning(false);
-    }, 400);
+    }, 600);
   };
 
-  // Generate Synthetic Faker Test Batch
-  const handleGenerateSynthetic = (count: number) => {
-    const syntheticBatch = generateSyntheticBatch(count);
-    setDataset(syntheticBatch);
-    setSelectedCase(syntheticBatch[0]);
-    setEvalResult(null);
+  // Generate Synthetic Data using Section 9 Generator
+  const handleGenerateSynthetic = () => {
+    const newCases = generateSyntheticBatch(10);
+    setDataset((prev) => [...prev, ...newCases]);
   };
 
   // Inspect single test case
-  const inspectTestCase = (tc: EvalTestCase) => {
-    setSelectedCase(tc);
-    const scan = processGuardrailPipeline(tc.textWithSecrets, rules, 'eval-inspect', {
+  const inspectTestCase = (testCase: EvalTestCase) => {
+    setSelectedCase(testCase);
+    const scan = processGuardrailPipeline(testCase.textWithSecrets, rules, 'eval-inspect', {
       activeLayers,
       enableNormalization: true,
     });
@@ -173,28 +181,28 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-            <FlaskConical className="h-5 w-5 text-indigo-400" />
-            Quality & Precision/Recall Evaluation Suite
+            <FlaskConical className="h-5 w-5 text-white" />
+            Quality, Evaluation & Benchmark Suite
           </h2>
-          <p className="text-xs text-slate-400">
-            Benchmark detection quality against ground-truth labeled synthetic meeting datasets with zero real data exposure.
+          <p className="text-xs text-white/50">
+            Comprehensive testing with recall, precision, F1-scores, and automated unit test assertions.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
-            id="run-benchmark-suite-btn"
+            id="run-evaluation-button"
             onClick={runEvaluationSuite}
             disabled={isRunning}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-4 py-2 text-xs font-semibold text-white shadow-md transition-colors"
+            className="flex items-center gap-2 rounded-full bg-white text-black hover:bg-white/90 disabled:opacity-50 px-4 py-2 text-xs font-semibold shadow-sm transition-all transform hover:-translate-y-0.5"
           >
-            <Play className={`h-4 w-4 ${isRunning ? 'animate-spin' : ''}`} />
-            <span>{isRunning ? 'Benchmarking...' : 'Run Benchmark Suite'}</span>
+            {isRunning ? <RotateCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            <span>{isRunning ? 'Benchmarking Suite...' : 'Run Benchmark Suite'}</span>
           </button>
 
           <button
-            onClick={() => handleGenerateSynthetic(30)}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-medium text-slate-300 transition-colors"
+            onClick={handleGenerateSynthetic}
+            className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] hover:bg-white/10 px-3.5 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors"
           >
             <Sparkles className="h-3.5 w-3.5 text-amber-400" />
             <span>Generate 30 Synthetic Cases</span>
@@ -203,13 +211,13 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
       </div>
 
       {/* Subtab navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
         <button
           onClick={() => setEvalSubTab('benchmark')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all ${
             evalSubTab === 'benchmark'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              ? 'bg-white text-black shadow-md'
+              : 'text-white/60 hover:text-white hover:bg-white/[0.06]'
           }`}
         >
           <FlaskConical className="h-4 w-4" />
@@ -220,17 +228,17 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
             setEvalSubTab('unit_tests');
             if (!unitTestReport) handleRunUnitTests();
           }}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all ${
             evalSubTab === 'unit_tests'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              ? 'bg-white text-black shadow-md'
+              : 'text-white/60 hover:text-white hover:bg-white/[0.06]'
           }`}
         >
           <TestTube className="h-4 w-4" />
           <span>Automated Unit Tests</span>
           {unitTestReport && (
-            <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
-              unitTestReport.failedTests === 0 ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' : 'bg-rose-950 text-rose-300'
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-mono ${
+              unitTestReport.failedTests === 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300'
             }`}>
               {unitTestReport.passedTests}/{unitTestReport.totalTests}
             </span>
@@ -243,42 +251,42 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
           {/* Results Scorecards */}
           {evalResult && (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {/* Recall (Most critical as per Section 9) */}
-              <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 p-4 shadow-sm">
-                <div className="text-[11px] text-emerald-300 font-medium">RECALL (SECRETS CAUGHT)</div>
+              {/* Recall */}
+              <div className="rounded-2xl border border-emerald-500/30 bg-[#07080a] p-4 shadow-sm">
+                <div className="text-[11px] text-emerald-400 font-medium">RECALL (SECRETS CAUGHT)</div>
                 <div className="text-2xl font-black font-mono text-emerald-400 mt-1">
                   {evalResult.recall}%
                 </div>
-                <div className="text-[10px] text-emerald-500 mt-0.5 font-mono">
+                <div className="text-[10px] text-white/40 mt-0.5 font-mono">
                   {evalResult.truePositives} caught / {evalResult.falseNegatives} missed
                 </div>
               </div>
 
               {/* Precision */}
-              <div className="rounded-xl border border-indigo-500/40 bg-indigo-950/40 p-4 shadow-sm">
-                <div className="text-[11px] text-indigo-300 font-medium">PRECISION</div>
-                <div className="text-2xl font-black font-mono text-indigo-400 mt-1">
+              <div className="rounded-2xl border border-white/10 bg-[#07080a] p-4 shadow-sm">
+                <div className="text-[11px] text-white/70 font-medium">PRECISION</div>
+                <div className="text-2xl font-black font-mono text-white mt-1">
                   {evalResult.precision}%
                 </div>
-                <div className="text-[10px] text-indigo-500 mt-0.5 font-mono">
+                <div className="text-[10px] text-white/40 mt-0.5 font-mono">
                   {evalResult.falsePositives} false alarms
                 </div>
               </div>
 
               {/* F1 Score */}
-              <div className="rounded-xl border border-purple-500/40 bg-purple-950/40 p-4 shadow-sm">
-                <div className="text-[11px] text-purple-300 font-medium">F1-SCORE</div>
-                <div className="text-2xl font-black font-mono text-purple-400 mt-1">
+              <div className="rounded-2xl border border-white/10 bg-[#07080a] p-4 shadow-sm">
+                <div className="text-[11px] text-white/70 font-medium">F1-SCORE</div>
+                <div className="text-2xl font-black font-mono text-white mt-1">
                   {evalResult.f1Score}%
                 </div>
-                <div className="text-[10px] text-purple-500 mt-0.5">Harmonic balance</div>
+                <div className="text-[10px] text-white/40 mt-0.5">Harmonic balance</div>
               </div>
 
               {/* False Negatives (Leaks) */}
-              <div className={`rounded-xl border p-4 shadow-sm ${
+              <div className={`rounded-2xl border p-4 shadow-sm ${
                 evalResult.falseNegatives === 0
-                  ? 'border-emerald-800 bg-slate-900 text-emerald-400'
-                  : 'border-rose-500 bg-rose-950/50 text-rose-300'
+                  ? 'border-emerald-500/30 bg-[#07080a] text-emerald-400'
+                  : 'border-rose-500/40 bg-rose-950/20 text-rose-300'
               }`}>
                 <div className="text-[11px] font-medium">MISSED LEAKS (FN)</div>
                 <div className="text-2xl font-black font-mono mt-1">
@@ -290,12 +298,12 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
               </div>
 
               {/* Avg Scan Latency */}
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 shadow-sm">
-                <div className="text-[11px] text-slate-400 font-medium">SCAN LATENCY</div>
+              <div className="rounded-2xl border border-white/10 bg-[#07080a] p-4 shadow-sm">
+                <div className="text-[11px] text-white/50 font-medium">SCAN LATENCY</div>
                 <div className="text-2xl font-black font-mono text-white mt-1">
-                  {evalResult.avgLatencyMs} <span className="text-xs font-normal text-slate-400">ms</span>
+                  {evalResult.avgLatencyMs} <span className="text-xs font-normal text-white/50">ms</span>
                 </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">Per transcript chunk</div>
+                <div className="text-[10px] text-white/40 mt-0.5">Per transcript chunk</div>
               </div>
             </div>
           )}
@@ -303,12 +311,12 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
           {/* Main Eval View: Test Cases List & Inspector */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Dataset Test Cases (1 col) */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-4 shadow-sm flex flex-col h-[520px]">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs">
-                <span className="font-bold text-slate-200">
+            <div className="rounded-2xl border border-white/10 bg-[#07080a] p-5 shadow-sm flex flex-col h-[520px]">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10 text-xs">
+                <span className="font-bold text-white">
                   Evaluation Dataset ({dataset.length} Cases)
                 </span>
-                <span className="text-slate-500 font-mono text-[11px]">Ground Truth</span>
+                <span className="text-white/40 font-mono text-[11px]">Ground Truth</span>
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-2 py-3 pr-1">
@@ -318,18 +326,18 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
                     <div
                       key={tc.id}
                       onClick={() => inspectTestCase(tc)}
-                      className={`rounded-lg border p-2.5 text-xs transition-all cursor-pointer ${
+                      className={`rounded-xl border p-3 text-xs transition-all cursor-pointer ${
                         isSelected
-                          ? 'border-indigo-500 bg-indigo-950/60 text-white shadow-sm'
-                          : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                          ? 'border-white/40 bg-white/10 text-white shadow-sm'
+                          : 'border-white/[0.06] bg-[#000000] text-white/60 hover:bg-white/[0.03] hover:text-white'
                       }`}
                     >
-                      <div className="font-semibold text-slate-200 truncate">{tc.scenarioName}</div>
-                      <div className="text-[11px] text-slate-400 font-mono mt-1 truncate">
+                      <div className="font-semibold text-white truncate">{tc.scenarioName}</div>
+                      <div className="text-[11px] text-white/40 font-mono mt-1 truncate">
                         {tc.textWithSecrets}
                       </div>
                       <div className="flex items-center gap-1.5 mt-2">
-                        <span className="rounded bg-slate-800 px-1.5 py-0.2 text-[9px] font-mono text-slate-300">
+                        <span className="rounded-full bg-white/10 px-2 py-0.2 text-[9px] font-mono text-white/70 border border-white/15">
                           {tc.expectedSpans.length} Expected Secret(s)
                         </span>
                       </div>
@@ -341,19 +349,19 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
 
             {/* Selected Test Case Inspector & Ground Truth Diff (2 cols) */}
             <div className="lg:col-span-2 space-y-4">
-              <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="rounded-2xl border border-white/10 bg-[#07080a] p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-200">
+                    <h3 className="text-sm font-bold text-white">
                       {selectedCase?.scenarioName || 'Test Case Inspector'}
                     </h3>
-                    <span className="text-xs text-slate-500 font-mono">
+                    <span className="text-xs text-white/40 font-mono">
                       Ground Truth Verification & Offset Mapping
                     </span>
                   </div>
                   <button
                     onClick={() => selectedCase && inspectTestCase(selectedCase)}
-                    className="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors"
+                    className="rounded-full border border-white/10 bg-white/[0.05] hover:bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white transition-colors"
                   >
                     Scan Single Case
                   </button>
@@ -363,32 +371,32 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
                   <div className="space-y-4 text-xs">
                     {/* Raw Transcript with Injected Secret */}
                     <div>
-                      <span className="text-slate-400 font-semibold mb-1 block">
+                      <span className="text-white/50 font-semibold mb-1 block">
                         Raw Transcript (Ephemeral Memory View with Injected Secrets):
                       </span>
-                      <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 p-3 font-mono text-amber-200 text-xs leading-relaxed">
+                      <div className="rounded-xl border border-amber-500/30 bg-[#000000] p-3.5 font-mono text-amber-200 text-xs leading-relaxed">
                         {selectedCase.textWithSecrets}
                       </div>
                     </div>
 
                     {/* Ground Truth Spans */}
                     <div>
-                      <span className="text-slate-400 font-semibold mb-1 block">
+                      <span className="text-white/50 font-semibold mb-1 block">
                         Ground Truth Annotated Labels (Expected):
                       </span>
                       <div className="space-y-1.5">
                         {selectedCase.expectedSpans.length === 0 ? (
-                          <div className="rounded-lg border border-slate-800 bg-slate-950 p-2 text-slate-500">
+                          <div className="rounded-xl border border-white/10 bg-[#000000] p-2.5 text-white/40">
                             Zero expected secrets (Clean talk baseline case).
                           </div>
                         ) : (
                           selectedCase.expectedSpans.map((sp, idx) => (
                             <div
                               key={idx}
-                              className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-2 font-mono"
+                              className="flex items-center justify-between rounded-xl border border-white/10 bg-[#000000] p-2.5 font-mono"
                             >
-                              <span className="text-indigo-400 font-bold">[{sp.label}]</span>
-                              <span className="text-slate-500 text-[11px]">
+                              <span className="text-white font-bold">[{sp.label}]</span>
+                              <span className="text-white/40 text-[11px]">
                                 Char Span: [{sp.start} → {sp.end}] | Category: {sp.category}
                               </span>
                             </div>
@@ -399,10 +407,10 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
 
                     {/* Redacted Output */}
                     <div>
-                      <span className="text-slate-400 font-semibold mb-1 block">
+                      <span className="text-white/50 font-semibold mb-1 block">
                         Guardrail Redacted Output (Sanitized Stream Result):
                       </span>
-                      <div className="rounded-lg border border-emerald-900/60 bg-emerald-950/30 p-3 font-sans text-emerald-200 text-xs leading-relaxed">
+                      <div className="rounded-xl border border-emerald-500/30 bg-[#000000] p-3.5 font-sans text-emerald-200 text-xs leading-relaxed">
                         {caseScanResult ? caseScanResult.redactedText : 'Click "Scan Single Case" or run benchmark to view output.'}
                       </div>
                     </div>
@@ -412,35 +420,35 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
 
               {/* Category Breakdown Table */}
               {evalResult && evalResult.categoryBreakdown && (
-                <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-4 shadow-sm">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3">
+                <div className="rounded-2xl border border-white/10 bg-[#07080a] p-5 shadow-sm">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-white/70 mb-3">
                     Recall & Precision by Category
                   </h4>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
-                        <tr className="border-b border-slate-800 text-slate-400 font-mono text-[11px]">
-                          <th className="py-2 px-3">CATEGORY</th>
-                          <th className="py-2 px-3">CASES</th>
-                          <th className="py-2 px-3">RECALL %</th>
-                          <th className="py-2 px-3">PRECISION %</th>
-                          <th className="py-2 px-3">STATUS</th>
+                        <tr className="border-b border-white/10 text-white/40 font-mono text-[11px]">
+                          <th className="py-2.5 px-3">CATEGORY</th>
+                          <th className="py-2.5 px-3">CASES</th>
+                          <th className="py-2.5 px-3">RECALL %</th>
+                          <th className="py-2.5 px-3">PRECISION %</th>
+                          <th className="py-2.5 px-3">STATUS</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/60">
+                      <tbody className="divide-y divide-white/[0.06]">
                         {evalResult.categoryBreakdown.map((cat, idx) => (
-                          <tr key={idx} className="hover:bg-slate-800/40">
-                            <td className="py-2.5 px-3 font-semibold text-slate-200">{cat.category}</td>
-                            <td className="py-2.5 px-3 font-mono text-slate-400">{cat.count}</td>
+                          <tr key={idx} className="hover:bg-white/[0.03]">
+                            <td className="py-2.5 px-3 font-semibold text-white">{cat.category}</td>
+                            <td className="py-2.5 px-3 font-mono text-white/50">{cat.count}</td>
                             <td className="py-2.5 px-3 font-mono font-bold text-emerald-400">{cat.recall}%</td>
-                            <td className="py-2.5 px-3 font-mono font-bold text-indigo-400">{cat.precision}%</td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-white">{cat.precision}%</td>
                             <td className="py-2.5 px-3">
                               {cat.recall >= 90 ? (
-                                <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300 border border-emerald-800">
+                                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300 border border-emerald-500/30">
                                   PASS
                                 </span>
                               ) : (
-                                <span className="rounded bg-amber-950 px-1.5 py-0.5 text-[10px] font-medium text-amber-300 border border-amber-800">
+                                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300 border border-amber-500/30">
                                   TUNE NEEDED
                                 </span>
                               )}
@@ -458,20 +466,20 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
       ) : (
         /* Automated Unit Tests View */
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 rounded-xl border border-slate-800 bg-slate-900/90">
+          <div className="flex items-center justify-between p-5 rounded-2xl border border-white/10 bg-[#07080a]">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <TestTube className="h-4 w-4 text-indigo-400" />
+                <TestTube className="h-4 w-4 text-white" />
                 Automated Engine & Redactor Test Suite
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-white/50 mt-0.5">
                 Executes core engine tests: Layer 1 AWS & GitHub regex, Luhn card verification, allowlist bypass, spoken normalizer, and zero-retention memory overwrite.
               </p>
             </div>
             <button
               onClick={handleRunUnitTests}
               disabled={isTestRunning}
-              className="flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-4 py-2 text-xs font-semibold text-white shadow-md transition-colors"
+              className="flex items-center gap-2 rounded-full bg-white text-black hover:bg-white/90 disabled:opacity-50 px-4 py-2 text-xs font-semibold shadow-md transition-all"
             >
               <RotateCw className={`h-3.5 w-3.5 ${isTestRunning ? 'animate-spin' : ''}`} />
               <span>{isTestRunning ? 'Running Tests...' : 'Re-Run Unit Tests'}</span>
@@ -482,32 +490,32 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
             <div className="space-y-3">
               {/* Summary card */}
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
-                  <div className="text-[11px] text-slate-400">Total Tests</div>
+                <div className="rounded-2xl border border-white/10 bg-[#07080a] p-4">
+                  <div className="text-[11px] text-white/50">Total Tests</div>
                   <div className="text-xl font-bold font-mono text-white mt-0.5">{unitTestReport.totalTests}</div>
                 </div>
-                <div className="rounded-xl border border-emerald-900/60 bg-emerald-950/40 p-3">
+                <div className="rounded-2xl border border-emerald-500/30 bg-[#07080a] p-4">
                   <div className="text-[11px] text-emerald-400 font-medium">Passed</div>
                   <div className="text-xl font-bold font-mono text-emerald-300 mt-0.5">{unitTestReport.passedTests}</div>
                 </div>
-                <div className={`rounded-xl border p-3 ${
+                <div className={`rounded-2xl border p-4 ${
                   unitTestReport.failedTests === 0
-                    ? 'border-slate-800 bg-slate-900'
-                    : 'border-rose-900/60 bg-rose-950/40'
+                    ? 'border-white/10 bg-[#07080a]'
+                    : 'border-rose-500/30 bg-rose-950/20'
                 }`}>
-                  <div className={`text-[11px] font-medium ${unitTestReport.failedTests === 0 ? 'text-slate-400' : 'text-rose-400'}`}>Failed</div>
-                  <div className={`text-xl font-bold font-mono mt-0.5 ${unitTestReport.failedTests === 0 ? 'text-slate-500' : 'text-rose-300'}`}>{unitTestReport.failedTests}</div>
+                  <div className={`text-[11px] font-medium ${unitTestReport.failedTests === 0 ? 'text-white/50' : 'text-rose-400'}`}>Failed</div>
+                  <div className={`text-xl font-bold font-mono mt-0.5 ${unitTestReport.failedTests === 0 ? 'text-white/40' : 'text-rose-300'}`}>{unitTestReport.failedTests}</div>
                 </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
-                  <div className="text-[11px] text-slate-400">Total Execution Time</div>
-                  <div className="text-xl font-bold font-mono text-indigo-400 mt-0.5">{unitTestReport.durationMs}ms</div>
+                <div className="rounded-2xl border border-white/10 bg-[#07080a] p-4">
+                  <div className="text-[11px] text-white/50">Execution Time</div>
+                  <div className="text-xl font-bold font-mono text-white mt-0.5">{unitTestReport.durationMs}ms</div>
                 </div>
               </div>
 
               {/* Individual assertions list */}
-              <div className="rounded-xl border border-slate-800 bg-slate-900/90 overflow-hidden divide-y divide-slate-800/60">
+              <div className="rounded-2xl border border-white/10 bg-[#07080a] overflow-hidden divide-y divide-white/[0.06]">
                 {unitTestReport.results.map((res, i) => (
-                  <div key={i} className="p-3.5 flex items-center justify-between hover:bg-slate-800/30 transition-colors text-xs">
+                  <div key={i} className="p-4 flex items-center justify-between hover:bg-white/[0.03] transition-colors text-xs">
                     <div className="flex items-center gap-3">
                       {res.passed ? (
                         <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -515,7 +523,7 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
                         <XCircle className="h-4 w-4 text-rose-400 shrink-0" />
                       )}
                       <div>
-                        <div className={`font-semibold ${res.passed ? 'text-slate-200' : 'text-rose-300'}`}>
+                        <div className={`font-semibold ${res.passed ? 'text-white' : 'text-rose-300'}`}>
                           {res.name}
                         </div>
                         {res.error && (
@@ -525,11 +533,11 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500">
+                    <div className="flex items-center gap-2 font-mono text-[11px] text-white/40">
                       <Clock className="h-3 w-3" />
                       <span>{res.durationMs}ms</span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        res.passed ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-rose-950 text-rose-300 border border-rose-800'
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        res.passed ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
                       }`}>
                         {res.passed ? 'PASS' : 'FAIL'}
                       </span>
@@ -539,10 +547,10 @@ export const EvaluationView: React.FC<EvaluationViewProps> = ({
               </div>
             </div>
           ) : (
-            <div className="text-center py-12 text-slate-500 text-xs rounded-xl border border-slate-800 bg-slate-900/90">
-              <TestTube className="h-8 w-8 mx-auto mb-2 text-indigo-400 opacity-60" />
-              <p className="font-semibold text-slate-300">No Unit Tests Executed Yet</p>
-              <p className="text-slate-500 mt-0.5">Click "Re-Run Unit Tests" to evaluate the engine assertions.</p>
+            <div className="text-center py-14 text-white/40 text-xs rounded-2xl border border-white/10 bg-[#07080a]">
+              <TestTube className="h-8 w-8 mx-auto mb-2 text-white/60 opacity-60" />
+              <p className="font-semibold text-white/70">No Unit Tests Executed Yet</p>
+              <p className="text-white/40 mt-0.5">Click "Re-Run Unit Tests" to evaluate the engine assertions.</p>
             </div>
           )}
         </div>

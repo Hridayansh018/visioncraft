@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { AppShell } from '../components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Confidential-Info Guardrail | Zero-Retention Audio Redaction & PII Shield',
@@ -23,10 +24,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="bg-[#0A0E17] text-[#dfe2ef] antialiased font-sans selection:bg-[#4d8eff] selection:text-[#00285d]" suppressHydrationWarning>
-        {children}
+      <body className="bg-[#000000] text-[#f1f3f9] antialiased font-sans selection:bg-white selection:text-black" suppressHydrationWarning>
+        <AppShell>
+          {children}
+        </AppShell>
       </body>
     </html>
   );

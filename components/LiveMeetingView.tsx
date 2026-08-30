@@ -28,50 +28,63 @@ import {
   Monitor,
   VolumeX,
   HelpCircle,
-  Headphones
+  Headphones,
+  X
 } from 'lucide-react';
 import { GuardrailRule, DetectedSpan, MeetingMessage, MeetingSession, RedactionEvent, DetectorLayer, AudioCaptureMode } from '../lib/types';
 import { processGuardrailPipeline } from '../lib/engine';
 import { PREDEFINED_MEETING_SCENARIOS, PredefinedMeetingScenario } from '../lib/meeting-scenarios';
+import { useAudioMeeting } from '../context/AudioMeetingContext';
 import confetti from 'canvas-confetti';
 
 interface LiveMeetingViewProps {
-  rules: GuardrailRule[];
-  currentSession: MeetingSession;
-  setCurrentSession: React.Dispatch<React.SetStateAction<MeetingSession>>;
-  onRedactionCaught: (event: RedactionEvent) => void;
-  allowlist: string[];
-  activeLayers: { layer1: boolean; layer2: boolean; layer3: boolean };
-  onOpenRulesManager: () => void;
-  onExport: (format: 'txt' | 'md' | 'json') => void;
+  rules?: GuardrailRule[];
+  currentSession?: MeetingSession;
+  setCurrentSession?: React.Dispatch<React.SetStateAction<MeetingSession>>;
+  onRedactionCaught?: (event: RedactionEvent) => void;
+  allowlist?: string[];
+  activeLayers?: { layer1: boolean; layer2: boolean; layer3: boolean };
+  onOpenRulesManager?: () => void;
+  onExport?: (format: 'txt' | 'md' | 'json') => void;
 }
 
-export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
-  rules,
-  currentSession,
-  setCurrentSession,
-  onRedactionCaught,
-  allowlist,
-  activeLayers,
-  onOpenRulesManager,
-  onExport,
-}) => {
-  const [isCapturing, setIsCapturing] = useState<boolean>(false);
-  const [captureMode, setCaptureMode] = useState<AudioCaptureMode>('dual_mixed');
-  const [isMicActive, setIsMicActive] = useState<boolean>(false);
-  const [isSystemActive, setIsSystemActive] = useState<boolean>(false);
+export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
+  const context = useAudioMeeting();
+
+  const rules = props.rules || context.rules;
+  const currentSession = props.currentSession || context.currentSession;
+  const setCurrentSession = props.setCurrentSession || context.setCurrentSession;
+  const onRedactionCaught = props.onRedactionCaught || context.onRedactionCaught;
+  const allowlist = props.allowlist || context.allowlist;
+  const activeLayers = props.activeLayers || context.activeLayers;
+  const onOpenRulesManager = props.onOpenRulesManager || (() => window.location.href = '/rules');
+  const onExport = props.onExport || context.openExportModal;
+
+  const {
+    isCapturing,
+    captureMode,
+    setCaptureMode,
+    isMicActive,
+    isSystemActive,
+    micError,
+    startLiveAudioCapture,
+    stopLiveAudioCapture,
+    pipelineLatencyMs,
+    ramBufferState,
+    recentCaughtAlert,
+    setRecentCaughtAlert,
+    isProcessingAudioFile,
+    uploadedFileName,
+    handleAudioFileUpload,
+    handleIncomingSpeech,
+    handleClearSession,
+  } = context;
   const [showAudioHelp, setShowAudioHelp] = useState<boolean>(false);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('devops-incident');
   const [customInputText, setCustomInputText] = useState<string>('');
   const [activeSpeaker, setActiveSpeaker] = useState<string>('');
   const [selectedSpan, setSelectedSpan] = useState<DetectedSpan | null>(null);
-  const [recentCaughtAlert, setRecentCaughtAlert] = useState<{ count: number; name: string; time: number } | null>(null);
-  const [ramBufferState, setRamBufferState] = useState<'idle' | 'buffering_raw' | 'scanning_guardrail' | 'zero_overwritten'>('idle');
-  const [pipelineLatencyMs, setPipelineLatencyMs] = useState<number>(12);
-  const [micError, setMicError] = useState<string | null>(null);
   const [autoScroll, setAutoScroll] = useState<boolean>(true);
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
-  const [isProcessingAudioFile, setIsProcessingAudioFile] = useState<boolean>(false);
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const simulationTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -156,273 +169,13 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
     }
   }, [currentSession.messages, autoScroll]);
 
-  // Core handler: process raw speech into zero-retention redacted transcript
-  const handleIncomingSpeech = useCallback((rawSpeechText: string, speakerName: string = 'Local Microphone') => {
-    if (!rawSpeechText.trim()) return;
-
-    // Step 1: Simulate Raw Audio Ingestion into Ephemeral RAM
-    setRamBufferState('buffering_raw');
-
-    // Step 2: Guardrail Engine Execution (Synchronous in RAM)
-    setRamBufferState('scanning_guardrail');
-    const result = processGuardrailPipeline(rawSpeechText, rules, currentSession.id, {
-      activeLayers,
-      allowlist,
-      enableNormalization: true,
-    });
-
-    setPipelineLatencyMs(result.processingTimeMs);
-
-    // Step 3: Raw Buffer is overwritten immediately
-    setRamBufferState('zero_overwritten');
-
-    // Trigger caught alerts if confidential items intercepted
-    if (result.detectedSpans.length > 0) {
-      result.events.forEach((evt) => onRedactionCaught(evt));
-
-      const firstName = result.detectedSpans[0].ruleName;
-      setRecentCaughtAlert({
-        count: result.detectedSpans.length,
-        name: firstName,
-        time: Date.now(),
-      });
-
-      // Quick visual pop
-      try {
-        confetti({
-          particleCount: 20,
-          spread: 40,
-          origin: { y: 0.9, x: 0.85 },
-          colors: ['#ef4444', '#f59e0b', '#6366f1'],
-        });
-      } catch {}
-    }
-
-    // Append only the sanitized/redacted message to session state
-    const newMessage: MeetingMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      speaker: speakerName,
-      timestamp: Date.now(),
-      redactedText: result.redactedText,
-      detectedSpans: result.detectedSpans,
-    };
-
-    setCurrentSession((prev) => {
-      const updatedCategories = { ...prev.redactionsByCategory };
-      result.detectedSpans.forEach((s) => {
-        updatedCategories[s.category] = (updatedCategories[s.category] || 0) + 1;
-      });
-
-      return {
-        ...prev,
-        messages: [...prev.messages, newMessage],
-        totalRedactions: prev.totalRedactions + result.detectedSpans.length,
-        redactionsByCategory: updatedCategories,
-      };
-    });
-
-    // Reset buffer state after visual pulse
-    setTimeout(() => {
-      setRamBufferState('idle');
-    }, 600);
-  }, [rules, currentSession.id, activeLayers, allowlist, onRedactionCaught, setCurrentSession]);
-
-  // Stop all active audio streams and recognition
-  const stopAudioCapture = () => {
-    setIsCapturing(false);
-    setIsMicActive(false);
-    setIsSystemActive(false);
-    setActiveSpeaker('');
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-    }
-
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((t) => t.stop());
-      micStreamRef.current = null;
-    }
-
-    if (systemStreamRef.current) {
-      systemStreamRef.current.getTracks().forEach((t) => t.stop());
-      systemStreamRef.current = null;
-    }
-
-    if (audioContextRef.current) {
-      try {
-        audioContextRef.current.close();
-      } catch {}
-      audioContextRef.current = null;
-    }
-
-    if (simulationTimerRef.current) {
-      clearTimeout(simulationTimerRef.current);
-    }
-  };
-
-  // Start Live Audio Capture supporting: Mic Only, System/Tab Audio, or Dual Mixed Bridge
-  const startLiveAudioCapture = async (mode: AudioCaptureMode = captureMode) => {
-    if (isCapturing) {
-      stopAudioCapture();
-      return;
-    }
-
-    setMicError(null);
-    let micTrack: MediaStreamTrack | null = null;
-    let systemTrack: MediaStreamTrack | null = null;
-
-    try {
-      // 1. Acquire Microphone Stream if needed
-      if (mode === 'mic_only' || mode === 'dual_mixed') {
-        try {
-          const micStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-          });
-          micStreamRef.current = micStream;
-          micTrack = micStream.getAudioTracks()[0];
-          setIsMicActive(true);
-        } catch (err: any) {
-          if (mode === 'mic_only') {
-            throw new Error(`Microphone permission denied or not found: ${err.message}`);
-          }
-          console.warn('Microphone not acquired for dual bridge:', err);
-        }
-      }
-
-      // 2. Acquire System / Tab Audio Stream if needed
-      if (mode === 'system_tab_only' || mode === 'dual_mixed') {
-        try {
-          const displayStream = await navigator.mediaDevices.getDisplayMedia({
-            audio: true,
-            video: true, // required by browser for getDisplayMedia prompt
-          });
-          systemStreamRef.current = displayStream;
-          const audioTracks = displayStream.getAudioTracks();
-
-          if (audioTracks.length === 0) {
-            // User did not check "Share tab audio" or "Share system audio"
-            setMicError('No system/tab audio track detected. When sharing, please make sure "Also share tab audio" (Chrome tab) or "Share system audio" is checked.');
-          } else {
-            systemTrack = audioTracks[0];
-            setIsSystemActive(true);
-
-            // Cleanly detach system audio if user clicks "Stop sharing" on the browser banner
-            systemTrack.onended = () => {
-              setIsSystemActive(false);
-              if (mode === 'system_tab_only') {
-                stopAudioCapture();
-              }
-            };
-          }
-        } catch (err: any) {
-          if (mode === 'system_tab_only') {
-            throw new Error(`System/Tab audio share cancelled or not supported: ${err.message}`);
-          }
-          console.warn('System audio not acquired for dual bridge:', err);
-        }
-      }
-
-      // 3. Web Audio API Mixing Graph (Merge Mic + System Audio into single pipeline)
-      if (mode === 'dual_mixed' && (micTrack || systemTrack)) {
-        try {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContextClass) {
-            const ctx = new AudioContextClass();
-            audioContextRef.current = ctx;
-            const destination = ctx.createMediaStreamDestination();
-
-            if (micStreamRef.current && micStreamRef.current.getAudioTracks().length > 0) {
-              const micSource = ctx.createMediaStreamSource(micStreamRef.current);
-              micSource.connect(destination);
-            }
-
-            if (systemStreamRef.current && systemStreamRef.current.getAudioTracks().length > 0) {
-              const sysSource = ctx.createMediaStreamSource(systemStreamRef.current);
-              sysSource.connect(destination);
-            }
-          }
-        } catch (mixErr) {
-          console.warn('Web Audio API mixing error, proceeding with available stream:', mixErr);
-        }
-      }
-
-      // 4. Update Session Source State
-      const newSource = mode === 'dual_mixed' ? 'mixed_audio' : mode === 'system_tab_only' ? 'system_audio' : 'microphone';
-      setCurrentSession((prev) => ({ ...prev, source: newSource }));
-
-      // 5. Start Speech Recognition
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-      if (!SpeechRecognition) {
-        setMicError('Web Speech API is not natively available in this browser. Live hardware audio captured; running meeting scenario fallback.');
-        startSimulationScenario(selectedScenarioId);
-        return;
-      }
-
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-
-      const speakerLabel = mode === 'dual_mixed'
-        ? 'Meeting Bridge (All Members)'
-        : mode === 'system_tab_only'
-        ? 'Remote Participant (System Audio)'
-        : 'Host (Live Microphone)';
-
-      recognition.onstart = () => {
-        setIsCapturing(true);
-        setActiveSpeaker(speakerLabel);
-      };
-
-      recognition.onresult = (event: any) => {
-        const lastIndex = event.results.length - 1;
-        const speechChunk = event.results[lastIndex][0].transcript;
-        handleIncomingSpeech(speechChunk, speakerLabel);
-      };
-
-      recognition.onerror = (event: any) => {
-        if (event.error === 'not-allowed') {
-          setMicError('Audio permissions were not granted. You can still test with simulated call scenarios or custom text injection.');
-        } else {
-          setMicError(`Audio recognition status (${event.error}). Testing with simulation scenario.`);
-        }
-        setIsCapturing(false);
-      };
-
-      recognition.onend = () => {
-        if (isCapturing) {
-          try {
-            recognition.start();
-          } catch {}
-        }
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-      setIsCapturing(true);
-    } catch (err: any) {
-      setMicError(`Audio capture notice: ${err.message}. Running meeting simulator.`);
-      startSimulationScenario(selectedScenarioId);
-    }
-  };
-
   // Run Predefined Meeting Scenario Simulation
   const startSimulationScenario = (scenarioId: string) => {
     const scenario = PREDEFINED_MEETING_SCENARIOS.find((s) => s.id === scenarioId) || PREDEFINED_MEETING_SCENARIOS[0];
-    setIsCapturing(true);
-
     let lineIndex = 0;
 
     const playNextLine = () => {
       if (lineIndex >= scenario.dialogue.length) {
-        setIsCapturing(false);
         setActiveSpeaker('');
         return;
       }
@@ -436,7 +189,6 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
         simulationTimerRef.current = setTimeout(playNextLine, scenario.dialogue[lineIndex].delayMs || 2000);
       } else {
         setTimeout(() => {
-          setIsCapturing(false);
           setActiveSpeaker('');
         }, 1500);
       }
@@ -447,69 +199,11 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
 
   // Stop current streaming
   const handleStopStream = () => {
-    setIsCapturing(false);
+    stopLiveAudioCapture();
     setActiveSpeaker('');
     if (simulationTimerRef.current) {
       clearTimeout(simulationTimerRef.current);
     }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-    }
-  };
-
-  // Clear Session Transcripts
-  const handleClearSession = () => {
-    handleStopStream();
-    setCurrentSession({
-      id: `session-${Date.now().toString(36)}`,
-      title: 'Real-Time Sanity Session',
-      startedAt: Date.now(),
-      durationSeconds: 0,
-      source: 'microphone',
-      messages: [],
-      totalRedactions: 0,
-      redactionsByCategory: {},
-      status: 'live',
-    });
-    setSelectedSpan(null);
-  };
-
-  // Handle Audio File Ingestion
-  const handleAudioFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadedFileName(file.name);
-    setIsProcessingAudioFile(true);
-    setIsCapturing(true);
-
-    const simulatedAudioLines = [
-      { speaker: `Audio File (${file.name})`, text: 'Ingesting audio stream track 1: Audio header initialized at 16kHz PCM.' },
-      { speaker: `Audio File (${file.name})`, text: 'Speaker 1: Verify our cloud database credentials postgres://db_admin:SecretPass2026!@postgres.prod:5432/main.' },
-      { speaker: `Audio File (${file.name})`, text: 'Speaker 2: Confirmed. Also check AWS bucket access key AKIAIOSFODNN7EXAMPLE for log export.' },
-      { speaker: `Audio File (${file.name})`, text: 'Speaker 1: Master backup key verified and audio stream ended.' },
-    ];
-
-    let lineIndex = 0;
-    const processFileLine = () => {
-      if (lineIndex >= simulatedAudioLines.length) {
-        setIsProcessingAudioFile(false);
-        setIsCapturing(false);
-        setActiveSpeaker('');
-        return;
-      }
-
-      const item = simulatedAudioLines[lineIndex];
-      setActiveSpeaker(item.speaker);
-      handleIncomingSpeech(item.text, item.speaker);
-      lineIndex++;
-
-      setTimeout(processFileLine, 2000);
-    };
-
-    setTimeout(processFileLine, 800);
   };
 
   // Submit custom test speech snippet
@@ -530,17 +224,17 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
           {/* Main Action Buttons */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Capture Source Mode Dropdown */}
-            <div className="flex items-center gap-1.5 rounded-lg border border-[#3e495d] bg-[#181b25] p-1 text-xs">
+            <div className="flex items-center rounded-xl bg-white/[0.04] p-1 border border-white/10 text-xs">
               <button
                 type="button"
                 onClick={() => setCaptureMode('dual_mixed')}
                 disabled={isCapturing}
-                className={`px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
                   captureMode === 'dual_mixed'
-                    ? 'bg-[#4d8eff] text-[#00285d] font-semibold shadow-sm'
-                    : 'text-[#8c909f] hover:text-[#dfe2ef]'
+                    ? 'bg-white text-black font-semibold shadow-sm'
+                    : 'text-white/60 hover:text-white'
                 }`}
-                title="Capture both your microphone and system/tab meeting audio from all members"
+                title="Capture both your microphone and computer audio"
               >
                 <Headphones className="w-3.5 h-3.5" />
                 <span>Full Bridge</span>
@@ -549,12 +243,12 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
                 type="button"
                 onClick={() => setCaptureMode('system_tab_only')}
                 disabled={isCapturing}
-                className={`px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
                   captureMode === 'system_tab_only'
-                    ? 'bg-[#4d8eff] text-[#00285d] font-semibold shadow-sm'
-                    : 'text-[#8c909f] hover:text-[#dfe2ef]'
+                    ? 'bg-white text-black font-semibold shadow-sm'
+                    : 'text-white/60 hover:text-white'
                 }`}
-                title="Capture only incoming audio from the meeting tab/window (Google Meet, Teams, Zoom)"
+                title="Capture only incoming audio from the meeting tab/window"
               >
                 <Monitor className="w-3.5 h-3.5" />
                 <span>System/Tab</span>
@@ -563,10 +257,10 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
                 type="button"
                 onClick={() => setCaptureMode('mic_only')}
                 disabled={isCapturing}
-                className={`px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
                   captureMode === 'mic_only'
-                    ? 'bg-[#4d8eff] text-[#00285d] font-semibold shadow-sm'
-                    : 'text-[#8c909f] hover:text-[#dfe2ef]'
+                    ? 'bg-white text-black font-semibold shadow-sm'
+                    : 'text-white/60 hover:text-white'
                 }`}
                 title="Capture only your local microphone"
               >
@@ -580,10 +274,10 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
               id="live-mic-toggle-button"
               onClick={() => startLiveAudioCapture(captureMode)}
               disabled={isProcessingAudioFile}
-              className={`flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all shadow-md ${
+              className={`flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-semibold transition-all shadow-md ${
                 isCapturing && !isProcessingAudioFile
                   ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50'
+                  : 'bg-white hover:bg-white/90 text-black disabled:opacity-50'
               }`}
             >
               {isCapturing && !isProcessingAudioFile ? (
@@ -608,15 +302,15 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
             {/* Audio Help / Instructions button */}
             <button
               onClick={() => setShowAudioHelp(true)}
-              className="rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700 p-2 text-slate-300 hover:text-white transition-colors"
+              className="rounded-xl border border-white/10 bg-white/[0.05] hover:bg-white/10 p-2 text-white/70 hover:text-white transition-colors"
               title="How to capture meeting tab & system audio"
             >
-              <HelpCircle className="h-4 w-4 text-indigo-400" />
+              <HelpCircle className="h-4 w-4 text-white/80" />
             </button>
 
             {/* Audio File Upload */}
-            <label className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-medium text-slate-200 transition-colors cursor-pointer">
-              <Upload className="h-3.5 w-3.5 text-indigo-400" />
+            <label className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] hover:bg-white/10 px-3 py-2 text-xs font-medium text-white transition-colors cursor-pointer">
+              <Upload className="h-3.5 w-3.5 text-white/70" />
               <span>{isProcessingAudioFile ? 'Ingesting Audio...' : 'Ingest Audio File'}</span>
               <input
                 type="file"
@@ -627,7 +321,7 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
               />
             </label>
 
-            <div className="h-6 w-px bg-slate-800 hidden sm:block" />
+            <div className="h-6 w-px bg-white/10 hidden sm:block" />
 
             {/* Scenario Picker */}
             <div className="flex items-center gap-2">
@@ -636,10 +330,10 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
                 value={selectedScenarioId}
                 onChange={(e) => setSelectedScenarioId(e.target.value)}
                 disabled={isCapturing}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-200 focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+                className="rounded-xl border border-white/10 bg-[#07080a] px-3 py-2 text-xs font-medium text-white focus:border-white/30 focus:outline-none disabled:opacity-50"
               >
                 {PREDEFINED_MEETING_SCENARIOS.map((s) => (
-                  <option key={s.id} value={s.id}>
+                  <option key={s.id} value={s.id} className="bg-[#07080a] text-white">
                     {s.title} ({s.category})
                   </option>
                 ))}
@@ -649,7 +343,7 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
                 id="run-scenario-button"
                 onClick={() => startSimulationScenario(selectedScenarioId)}
                 disabled={isCapturing}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-medium text-slate-200 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] hover:bg-white/10 px-3 py-2 text-xs font-medium text-white transition-colors disabled:opacity-50"
               >
                 <Play className="h-3.5 w-3.5 text-emerald-400" />
                 <span>Simulate Call</span>
@@ -659,7 +353,7 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
             <button
               id="clear-session-button"
               onClick={handleClearSession}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900/80 hover:bg-slate-800 px-3 py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.05] hover:bg-white/10 px-3 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               <span>Reset</span>
@@ -670,18 +364,18 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
           <div className="flex flex-wrap items-center gap-3">
             {/* Active Source Indicators */}
             <div className="flex items-center gap-1.5 text-[11px] font-mono">
-              <span className={`px-2.5 py-1 rounded-md border flex items-center gap-1.5 ${
+              <span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
                 isMicActive
-                  ? 'bg-[#181b25] border-[#4fdbc8] text-[#4fdbc8] animate-pulse'
-                  : 'bg-[#0a0e17] border-[#262a34] text-[#8c909f]'
+                  ? 'bg-white/[0.08] border-emerald-400/40 text-emerald-400 animate-pulse'
+                  : 'bg-[#07080a] border-white/10 text-white/40'
               }`}>
                 <Mic className="w-3 h-3" />
                 <span>Mic: {isMicActive ? 'ON' : 'OFF'}</span>
               </span>
-              <span className={`px-2.5 py-1 rounded-md border flex items-center gap-1.5 ${
+              <span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
                 isSystemActive
-                  ? 'bg-[#181b25] border-[#4d8eff] text-[#4d8eff] animate-pulse'
-                  : 'bg-[#0a0e17] border-[#262a34] text-[#8c909f]'
+                  ? 'bg-white/[0.08] border-emerald-400/40 text-emerald-400 animate-pulse'
+                  : 'bg-[#07080a] border-white/10 text-white/40'
               }`}>
                 <Monitor className="w-3 h-3" />
                 <span>System: {isSystemActive ? 'ON' : 'OFF'}</span>
@@ -689,8 +383,8 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
             </div>
 
             {/* Live Audio Visualizer Canvas */}
-            <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 shadow-inner">
-              <Radio className={`h-3.5 w-3.5 ${isCapturing || isProcessingAudioFile ? 'text-rose-400 animate-pulse' : 'text-slate-600'}`} />
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#07080a] px-3 py-1.5 shadow-inner">
+              <Radio className={`h-3.5 w-3.5 ${isCapturing || isProcessingAudioFile ? 'text-rose-400 animate-pulse' : 'text-white/30'}`} />
               <canvas
                 ref={canvasRef}
                 width={120}
@@ -699,15 +393,15 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-1.5 text-xs">
-              <Activity className="h-3.5 w-3.5 text-indigo-400" />
-              <span className="text-slate-400">Latency:</span>
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#07080a] px-3 py-1.5 text-xs">
+              <Activity className="h-3.5 w-3.5 text-white/70" />
+              <span className="text-white/50">Latency:</span>
               <span className="font-mono font-semibold text-emerald-400">{pipelineLatencyMs}ms</span>
             </div>
 
-            <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-1.5 text-xs">
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#07080a] px-3 py-1.5 text-xs">
               <ShieldAlert className="h-3.5 w-3.5 text-rose-400" />
-              <span className="text-slate-400">Secrets:</span>
+              <span className="text-white/50">Secrets:</span>
               <span className="font-mono font-bold text-rose-400">{currentSession.totalRedactions}</span>
             </div>
 
@@ -716,7 +410,7 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
               <button
                 id="export-txt-button"
                 onClick={() => onExport('txt')}
-                className="rounded-md border border-slate-800 bg-slate-800/80 hover:bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-300"
+                className="rounded-lg border border-white/10 bg-white/[0.05] hover:bg-white/10 px-2.5 py-1.5 text-xs font-medium text-white/80"
                 title="Download Clean .TXT Transcript"
               >
                 <Download className="h-3.5 w-3.5 inline mr-1" />
@@ -725,7 +419,7 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
               <button
                 id="export-md-button"
                 onClick={() => onExport('md')}
-                className="rounded-md border border-slate-800 bg-slate-800/80 hover:bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-300"
+                className="rounded-lg border border-white/10 bg-white/[0.05] hover:bg-white/10 px-2.5 py-1.5 text-xs font-medium text-white/80"
                 title="Download Formatted .MD Document"
               >
                 MD
@@ -733,7 +427,7 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
               <button
                 id="export-json-button"
                 onClick={() => onExport('json')}
-                className="rounded-md border border-slate-800 bg-slate-800/80 hover:bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-300"
+                className="rounded-lg border border-white/10 bg-white/[0.05] hover:bg-white/10 px-2.5 py-1.5 text-xs font-medium text-white/80"
                 title="Download JSON Metadata Payload"
               >
                 JSON
@@ -805,62 +499,62 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = ({
         {/* Interactive Steps Pipeline */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-2 text-center text-xs">
           {/* Step 1: Ingestion */}
-          <div className={`rounded-lg border p-2.5 transition-all ${
+          <div className={`rounded-xl border p-2.5 transition-all ${
             ramBufferState === 'buffering_raw'
-              ? 'border-indigo-500 bg-indigo-950/50 text-indigo-200 shadow-sm'
-              : 'border-slate-800 bg-slate-950 text-slate-400'
+              ? 'border-white bg-white/10 text-white shadow-sm'
+              : 'border-white/10 bg-[#07080a] text-white/50'
           }`}>
-            <div className="font-mono text-[10px] text-slate-500 mb-1">STEP 01</div>
-            <div className="font-semibold text-slate-200">Audio Ingestion</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">VAD Chunking (2-4s)</div>
+            <div className="font-mono text-[10px] text-white/40 mb-1">STEP 01</div>
+            <div className="font-semibold text-white">Audio Ingestion</div>
+            <div className="text-[10px] text-white/40 mt-0.5">VAD Chunking (2-4s)</div>
           </div>
 
           {/* Step 2: Local Whisper STT */}
-          <div className={`rounded-lg border p-2.5 transition-all ${
+          <div className={`rounded-xl border p-2.5 transition-all ${
             ramBufferState === 'buffering_raw' || ramBufferState === 'scanning_guardrail'
-              ? 'border-indigo-500 bg-indigo-950/50 text-indigo-200 shadow-sm'
-              : 'border-slate-800 bg-slate-950 text-slate-400'
+              ? 'border-white bg-white/10 text-white shadow-sm'
+              : 'border-white/10 bg-[#07080a] text-white/50'
           }`}>
-            <div className="font-mono text-[10px] text-slate-500 mb-1">STEP 02</div>
-            <div className="font-semibold text-slate-200">Local STT Worker</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">faster-whisper int8</div>
+            <div className="font-mono text-[10px] text-white/40 mb-1">STEP 02</div>
+            <div className="font-semibold text-white">Local STT Worker</div>
+            <div className="text-[10px] text-white/40 mt-0.5">faster-whisper int8</div>
           </div>
 
           {/* Step 3: Raw Ephemeral Buffer */}
-          <div className={`rounded-lg border p-2.5 transition-all ${
+          <div className={`rounded-xl border p-2.5 transition-all ${
             ramBufferState === 'scanning_guardrail'
-              ? 'border-amber-500 bg-amber-950/50 text-amber-200 animate-pulse'
+              ? 'border-amber-400 bg-amber-500/10 text-amber-300 animate-pulse'
               : ramBufferState === 'zero_overwritten'
-              ? 'border-emerald-500/50 bg-emerald-950/20 text-emerald-300'
-              : 'border-slate-800 bg-slate-950 text-slate-400'
+              ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
+              : 'border-white/10 bg-[#07080a] text-white/50'
           }`}>
-            <div className="font-mono text-[10px] text-slate-500 mb-1">STEP 03 (RAM ONLY)</div>
-            <div className="font-semibold text-slate-200">Guardrail Engine</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Layer 1+2+3 Detectors</div>
+            <div className="font-mono text-[10px] text-white/40 mb-1">STEP 03 (RAM ONLY)</div>
+            <div className="font-semibold text-white">Guardrail Engine</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Layer 1+2+3 Detectors</div>
           </div>
 
           {/* Step 4: Redacted Stream Output */}
-          <div className={`rounded-lg border p-2.5 transition-all ${
+          <div className={`rounded-xl border p-2.5 transition-all ${
             ramBufferState === 'zero_overwritten'
-              ? 'border-indigo-500 bg-indigo-950/50 text-indigo-200'
-              : 'border-slate-800 bg-slate-950 text-slate-400'
+              ? 'border-white/50 bg-white/10 text-white'
+              : 'border-white/10 bg-[#07080a] text-white/50'
           }`}>
-            <div className="font-mono text-[10px] text-slate-500 mb-1">STEP 04</div>
-            <div className="font-semibold text-slate-200">Redacted Stream</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Live UI + SQLite DB</div>
+            <div className="font-mono text-[10px] text-white/40 mb-1">STEP 04</div>
+            <div className="font-semibold text-white">Redacted Stream</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Live UI + SQLite DB</div>
           </div>
 
           {/* Step 5: RAM Zero Wipe */}
-          <div className={`rounded-lg border p-2.5 transition-all ${
+          <div className={`rounded-xl border p-2.5 transition-all ${
             ramBufferState === 'zero_overwritten'
-              ? 'border-emerald-500 bg-emerald-950/60 text-emerald-200 shadow-md ring-1 ring-emerald-500'
-              : 'border-slate-800 bg-slate-950 text-slate-400'
+              ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300 shadow-md ring-1 ring-emerald-500/50'
+              : 'border-white/10 bg-[#07080a] text-white/50'
           }`}>
-            <div className="font-mono text-[10px] text-emerald-500 mb-1">STEP 05 (WIPED)</div>
+            <div className="font-mono text-[10px] text-emerald-400 mb-1">STEP 05 (WIPED)</div>
             <div className="font-semibold text-emerald-400 flex items-center justify-center gap-1">
               <Lock className="w-3 h-3 inline" /> 0x00 Zero-Fill
             </div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Raw Buffer Discarded</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Raw Buffer Discarded</div>
           </div>
         </div>
       </div>

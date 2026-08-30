@@ -18,17 +18,18 @@ import {
   Sparkles,
   Info
 } from 'lucide-react';
-import { AppDeploymentTier } from './Navbar';
+import { useAudioMeeting, AppDeploymentTier } from '../context/AudioMeetingContext';
 
 interface ArchitectureSaaSViewProps {
-  deploymentTier: AppDeploymentTier;
-  setDeploymentTier: (tier: AppDeploymentTier) => void;
+  deploymentTier?: AppDeploymentTier;
+  setDeploymentTier?: (tier: AppDeploymentTier) => void;
 }
 
-export const ArchitectureSaaSView: React.FC<ArchitectureSaaSViewProps> = ({
-  deploymentTier,
-  setDeploymentTier,
-}) => {
+export const ArchitectureSaaSView: React.FC<ArchitectureSaaSViewProps> = (props) => {
+  const context = useAudioMeeting();
+  const deploymentTier = props.deploymentTier || context.deploymentTier;
+  const setDeploymentTier = props.setDeploymentTier || context.setDeploymentTier;
+
   // Interactive Cloud Economics Calculator State
   const [meetingHoursPerMonth, setMeetingHoursPerMonth] = useState<number>(5000);
   const [pricePerMinute, setPricePerMinute] = useState<number>(0.06);
@@ -56,57 +57,57 @@ export const ArchitectureSaaSView: React.FC<ArchitectureSaaSViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-            <Cloud className="h-5 w-5 text-indigo-400" />
+            <Cloud className="h-5 w-5 text-white" />
             SaaS Cloud Architecture & Unit Economics
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-white/50">
             Design principles, multi-tenant Data Plane vs Control Plane isolation, and GPU cost model.
           </p>
         </div>
 
         {/* Tier Buttons */}
-        <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 p-1 rounded-lg text-xs">
+        <div className="flex items-center gap-1.5 bg-[#07080a] border border-white/10 p-1 rounded-full text-xs">
           <button
             onClick={() => setDeploymentTier('local_mvp')}
-            className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-full font-medium transition-colors ${
               deploymentTier === 'local_mvp'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black font-semibold shadow-sm'
+                : 'text-white/60 hover:text-white'
             }`}
           >
             Phase 0: Local MVP
           </button>
           <button
             onClick={() => setDeploymentTier('cloud_saas')}
-            className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-full font-medium transition-colors ${
               deploymentTier === 'cloud_saas'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black font-semibold shadow-sm'
+                : 'text-white/60 hover:text-white'
             }`}
           >
-            Phase 2: Zero-Retention Cloud SaaS
+            Phase 2: Cloud SaaS
           </button>
           <button
             onClick={() => setDeploymentTier('enterprise_vpc')}
-            className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-full font-medium transition-colors ${
               deploymentTier === 'enterprise_vpc'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white text-black font-semibold shadow-sm'
+                : 'text-white/60 hover:text-white'
             }`}
           >
-            Phase 3: Enterprise VPC
+            Phase 3: Dedicated VPC
           </button>
         </div>
       </div>
 
       {/* Target Architecture Diagram (Control Plane vs Data Plane) */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-5 shadow-sm space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-[#07080a] p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <Server className="h-4 w-4 text-indigo-400" />
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <Server className="h-4 w-4 text-white" />
             Multi-Tenant Zero-Retention Cloud Architecture
           </h3>
-          <span className="rounded bg-indigo-950 px-2 py-0.5 text-[10px] font-mono text-indigo-400 border border-indigo-800">
+          <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-mono text-white/70 border border-white/15">
             Control Plane / Data Plane Split
           </span>
         </div>
@@ -114,65 +115,65 @@ export const ArchitectureSaaSView: React.FC<ArchitectureSaaSViewProps> = ({
         {/* Visual Architecture Schematic */}
         <div className="space-y-3 font-mono text-xs">
           {/* Control Plane */}
-          <div className="rounded-lg border border-indigo-500/40 bg-indigo-950/20 p-4 space-y-2">
-            <div className="flex items-center justify-between font-bold text-indigo-300">
-              <span>┌─── CONTROL PLANE (Zero Raw Audio/Text Content Access) ───┐</span>
-              <span className="text-[10px] bg-indigo-900/50 px-2 py-0.5 rounded text-indigo-300">
+          <div className="rounded-2xl border border-white/15 bg-[#000000] p-4 space-y-2">
+            <div className="flex items-center justify-between font-bold text-white">
+              <span>CONTROL PLANE (Zero Raw Audio/Text Content Access)</span>
+              <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-white/70">
                 Metadata & Billing Only
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-center text-[11px]">
-              <div className="rounded border border-indigo-800 bg-slate-950 p-2 text-slate-200">
+              <div className="rounded-xl border border-white/10 bg-[#07080a] p-2.5 text-white/80">
                 Web App / Dashboard (React + Tailwind)
               </div>
-              <div className="rounded border border-indigo-800 bg-slate-950 p-2 text-slate-200">
+              <div className="rounded-xl border border-white/10 bg-[#07080a] p-2.5 text-white/80">
                 Auth & SSO (SAML / OIDC)
               </div>
-              <div className="rounded border border-indigo-800 bg-slate-950 p-2 text-slate-200">
+              <div className="rounded-xl border border-white/10 bg-[#07080a] p-2.5 text-white/80">
                 Tenant Config & Rules Engine
               </div>
-              <div className="rounded border border-indigo-800 bg-slate-950 p-2 text-slate-200">
+              <div className="rounded-xl border border-white/10 bg-[#07080a] p-2.5 text-white/80">
                 Billing & Quota Metering (Stripe)
               </div>
             </div>
           </div>
 
-          <div className="flex justify-center text-slate-600 text-sm">
+          <div className="flex justify-center text-white/40 text-sm">
             │ (Config, Rule Definitions, Public Keys) ▼
           </div>
 
           {/* Data Plane */}
-          <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/20 p-4 space-y-3">
+          <div className="rounded-2xl border border-emerald-500/30 bg-[#000000] p-4 space-y-3">
             <div className="flex items-center justify-between font-bold text-emerald-300">
-              <span>┌─── DATA PLANE (Ephemeral, Locked Down, Zero-Retention) ───┐</span>
-              <span className="text-[10px] bg-emerald-900/50 px-2 py-0.5 rounded text-emerald-300">
+              <span>DATA PLANE (Ephemeral, Locked Down, Zero-Retention)</span>
+              <span className="text-[10px] bg-emerald-500/15 px-2.5 py-0.5 rounded-full text-emerald-300 border border-emerald-500/30">
                 Self-Hosted Compute (No 3rd Party AI)
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-center text-[11px]">
               {/* Media Ingestion */}
-              <div className="rounded border border-emerald-800 bg-slate-950 p-2.5 text-slate-200 space-y-1">
+              <div className="rounded-xl border border-emerald-500/20 bg-[#07080a] p-3 text-white space-y-1">
                 <div className="text-emerald-400 font-bold">1. Media Ingestion</div>
-                <div className="text-[10px] text-slate-400">WebRTC SFU (LiveKit) / WSS</div>
+                <div className="text-[10px] text-white/40">WebRTC SFU (LiveKit) / WSS</div>
               </div>
 
               {/* STT Worker Pool */}
-              <div className="rounded border border-emerald-800 bg-slate-950 p-2.5 text-slate-200 space-y-1">
+              <div className="rounded-xl border border-emerald-500/20 bg-[#07080a] p-3 text-white space-y-1">
                 <div className="text-emerald-400 font-bold">2. Self-Hosted STT</div>
-                <div className="text-[10px] text-slate-400">Autoscaling faster-whisper int8</div>
+                <div className="text-[10px] text-white/40">Autoscaling faster-whisper int8</div>
               </div>
 
               {/* Guardrail Service */}
-              <div className="rounded border border-emerald-800 bg-slate-950 p-2.5 text-slate-200 space-y-1">
+              <div className="rounded-xl border border-emerald-500/20 bg-[#07080a] p-3 text-white space-y-1">
                 <div className="text-emerald-400 font-bold">3. Guardrail Engine</div>
-                <div className="text-[10px] text-slate-400">Presidio + Regex (RAM Only)</div>
+                <div className="text-[10px] text-white/40">Presidio + Regex (RAM Only)</div>
               </div>
 
               {/* Redacted Outputs */}
-              <div className="rounded border border-emerald-800 bg-slate-950 p-2.5 text-slate-200 space-y-1">
+              <div className="rounded-xl border border-emerald-500/20 bg-[#07080a] p-3 text-white space-y-1">
                 <div className="text-emerald-400 font-bold">4. Redacted Output</div>
-                <div className="text-[10px] text-slate-400">Encrypted Store + Audit Trail</div>
+                <div className="text-[10px] text-white/40">Encrypted Store + Audit Trail</div>
               </div>
             </div>
           </div>
@@ -180,29 +181,29 @@ export const ArchitectureSaaSView: React.FC<ArchitectureSaaSViewProps> = ({
       </div>
 
       {/* GPU Unit Economics & Margin Calculator */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-5 shadow-sm space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+      <div className="rounded-2xl border border-white/10 bg-[#07080a] p-6 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-emerald-400" />
-              Interactive GPU Cost Model & Margin Calculator (SaaS Addendum §9)
+              Interactive GPU Cost Model & Margin Calculator
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-white/50">
               Simulate unit economics: GPU instances for self-hosted Whisper vs transcription pricing.
             </p>
           </div>
-          <div className="text-xs font-mono text-emerald-400 bg-emerald-950/60 px-3 py-1 rounded-md border border-emerald-800">
+          <div className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-3.5 py-1.5 rounded-full border border-emerald-500/30">
             Projected Margin: <strong>{grossMarginPercent}%</strong>
           </div>
         </div>
 
         {/* Sliders Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
           {/* Monthly Transcribed Hours */}
           <div className="space-y-2">
-            <div className="flex justify-between text-slate-300">
+            <div className="flex justify-between text-white/70">
               <span>Monthly Meeting Audio:</span>
-              <span className="font-mono font-bold text-indigo-400">
+              <span className="font-mono font-bold text-white">
                 {meetingHoursPerMonth.toLocaleString()} hrs ({totalMinutes.toLocaleString()} mins)
               </span>
             </div>
@@ -213,13 +214,13 @@ export const ArchitectureSaaSView: React.FC<ArchitectureSaaSViewProps> = ({
               step="500"
               value={meetingHoursPerMonth}
               onChange={(e) => setMeetingHoursPerMonth(parseInt(e.target.value, 10))}
-              className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white"
             />
           </div>
 
           {/* Pricing Per Transcribed Minute */}
           <div className="space-y-2">
-            <div className="flex justify-between text-slate-300">
+            <div className="flex justify-between text-white/70">
               <span>Customer Price / Minute:</span>
               <span className="font-mono font-bold text-emerald-400">
                 ${pricePerMinute.toFixed(2)} / min
@@ -232,15 +233,15 @@ export const ArchitectureSaaSView: React.FC<ArchitectureSaaSViewProps> = ({
               step="0.01"
               value={pricePerMinute}
               onChange={(e) => setPricePerMinute(parseFloat(e.target.value))}
-              className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-emerald-400"
             />
           </div>
 
           {/* Concurrent Streams per GPU */}
           <div className="space-y-2">
-            <div className="flex justify-between text-slate-300">
+            <div className="flex justify-between text-white/70">
               <span>Streams per GPU (AWS G5):</span>
-              <span className="font-mono font-bold text-amber-400">
+              <span className="font-mono font-bold text-white">
                 {concurrentStreamsPerGpu} streams
               </span>
             </div>
@@ -251,43 +252,43 @@ export const ArchitectureSaaSView: React.FC<ArchitectureSaaSViewProps> = ({
               step="2"
               value={concurrentStreamsPerGpu}
               onChange={(e) => setConcurrentStreamsPerGpu(parseInt(e.target.value, 10))}
-              className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+              className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white"
             />
           </div>
         </div>
 
         {/* Economic Output Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-800 text-xs">
-          <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
-            <span className="text-slate-400">Monthly Revenue:</span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4 border-t border-white/10 text-xs">
+          <div className="rounded-xl border border-white/10 bg-[#000000] p-4">
+            <span className="text-white/50">Monthly Revenue:</span>
             <div className="text-xl font-bold font-mono text-emerald-400 mt-1">
               ${Math.round(totalRevenue).toLocaleString()}
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
-            <span className="text-slate-400">GPU + Cloud Infra Cost:</span>
+          <div className="rounded-xl border border-white/10 bg-[#000000] p-4">
+            <span className="text-white/50">GPU + Cloud Infra Cost:</span>
             <div className="text-xl font-bold font-mono text-rose-400 mt-1">
               ${Math.round(totalInfraCost).toLocaleString()}
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+            <div className="text-[10px] text-white/40 mt-0.5 font-mono">
               ${costPerTranscribedMinute} / min
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
-            <span className="text-slate-400">Estimated Gross Profit:</span>
-            <div className="text-xl font-bold font-mono text-indigo-400 mt-1">
+          <div className="rounded-xl border border-white/10 bg-[#000000] p-4">
+            <span className="text-white/50">Estimated Gross Profit:</span>
+            <div className="text-xl font-bold font-mono text-white mt-1">
               ${Math.round(grossProfit).toLocaleString()}
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
-            <span className="text-slate-400">Peak GPU Workers:</span>
-            <div className="text-xl font-bold font-mono text-amber-400 mt-1">
+          <div className="rounded-xl border border-white/10 bg-[#000000] p-4">
+            <span className="text-white/50">Peak GPU Workers:</span>
+            <div className="text-xl font-bold font-mono text-white mt-1">
               {gpusRequired} instances
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">
+            <div className="text-[10px] text-white/40 mt-0.5">
               Autoscaled with scale-to-zero
             </div>
           </div>
@@ -297,69 +298,69 @@ export const ArchitectureSaaSView: React.FC<ArchitectureSaaSViewProps> = ({
       {/* Security, Compliance & Phased Roadmap Checklist */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Compliance Checklist */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-4 shadow-sm space-y-3 text-xs">
-          <h4 className="font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+        <div className="rounded-2xl border border-white/10 bg-[#07080a] p-5 shadow-sm space-y-3 text-xs">
+          <h4 className="font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
             <ShieldCheck className="h-4 w-4 text-emerald-400" />
-            Security & Compliance Checklist (SaaS Addendum §6)
+            Security & Compliance Checklist
           </h4>
 
           <div className="space-y-2">
-            <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-950 p-2.5">
+            <div className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-[#000000] p-3">
               <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
               <div>
-                <strong className="text-slate-200">Zero-Retention Architecture</strong>
-                <p className="text-slate-400 text-[11px]">Raw audio and transcripts exist only in RAM, overwritten with 0x00.</p>
+                <strong className="text-white">Zero-Retention Architecture</strong>
+                <p className="text-white/50 text-[11px]">Raw audio and transcripts exist only in RAM, overwritten with 0x00.</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-950 p-2.5">
+            <div className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-[#000000] p-3">
               <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
               <div>
-                <strong className="text-slate-200">Self-Hosted Compute (No 3rd Party AI)</strong>
-                <p className="text-slate-400 text-[11px]">Whisper and Presidio run on isolated cloud compute.</p>
+                <strong className="text-white">Self-Hosted Compute (No 3rd Party AI)</strong>
+                <p className="text-white/50 text-[11px]">Whisper and Presidio run on isolated cloud compute.</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-950 p-2.5">
+            <div className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-[#000000] p-3">
               <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
               <div>
-                <strong className="text-slate-200">SOC 2 Type II & GDPR Alignment</strong>
-                <p className="text-slate-400 text-[11px]">Tamper-evident audit logs, TLS 1.3, KMS envelope encryption.</p>
+                <strong className="text-white">SOC 2 Type II & GDPR Alignment</strong>
+                <p className="text-white/50 text-[11px]">Tamper-evident audit logs, TLS 1.3, KMS envelope encryption.</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Phased Roadmap */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-4 shadow-sm space-y-3 text-xs">
-          <h4 className="font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-            <Layers className="h-4 w-4 text-indigo-400" />
-            Phased Roadmap (SaaS Addendum §11)
+        <div className="rounded-2xl border border-white/10 bg-[#07080a] p-5 shadow-sm space-y-3 text-xs">
+          <h4 className="font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+            <Layers className="h-4 w-4 text-white" />
+            Phased Architecture Roadmap
           </h4>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between rounded-lg border border-indigo-900/60 bg-indigo-950/40 p-2.5">
+            <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-[#000000] p-3">
               <div>
-                <div className="font-semibold text-indigo-300">Phase 0: Local MVP (Current)</div>
-                <div className="text-[10px] text-slate-400">faster-whisper + Presidio + SQLite audit log</div>
+                <div className="font-semibold text-emerald-300">Phase 0: Local MVP (Current)</div>
+                <div className="text-[10px] text-white/40">faster-whisper + Presidio + SQLite audit log</div>
               </div>
               <span className="font-mono text-emerald-400 text-[10px] font-bold">COMPLETED</span>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-2.5">
+            <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#000000] p-3">
               <div>
-                <div className="font-semibold text-slate-200">Phase 1: Single-Tenant Hosted Pilot</div>
-                <div className="text-[10px] text-slate-400">Design partner pilot in isolated instance/VPC</div>
+                <div className="font-semibold text-white">Phase 1: Single-Tenant Hosted Pilot</div>
+                <div className="text-[10px] text-white/40">Design partner pilot in isolated instance/VPC</div>
               </div>
-              <span className="font-mono text-indigo-400 text-[10px]">4-8 WEEKS</span>
+              <span className="font-mono text-white/70 text-[10px]">4-8 WEEKS</span>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-2.5">
+            <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#000000] p-3">
               <div>
-                <div className="font-semibold text-slate-200">Phase 2: Multi-Tenant Zero-Retention SaaS</div>
-                <div className="text-[10px] text-slate-400">SSO, Stripe billing, autoscaling GPU pool</div>
+                <div className="font-semibold text-white">Phase 2: Multi-Tenant Zero-Retention SaaS</div>
+                <div className="text-[10px] text-white/40">SSO, Stripe billing, autoscaling GPU pool</div>
               </div>
-              <span className="font-mono text-slate-500 text-[10px]">2-4 MONTHS</span>
+              <span className="font-mono text-white/40 text-[10px]">2-4 MONTHS</span>
             </div>
           </div>
         </div>
