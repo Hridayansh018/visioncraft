@@ -73,6 +73,7 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
     ramBufferState,
     recentCaughtAlert,
     setRecentCaughtAlert,
+    interimTranscript,
     isProcessingAudioFile,
     uploadedFileName,
     handleAudioFileUpload,
@@ -649,6 +650,23 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
                     )}
                   </div>
                 ))
+              )}
+
+              {/* Live Real-Time Speech Stream Bubble */}
+              {interimTranscript && (
+                <div className="rounded-xl border border-indigo-500/40 bg-indigo-950/30 p-3 text-sm flex items-start gap-2.5 shadow-md">
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-400 mt-0.5 shrink-0">
+                    <Mic className="h-3 w-3 animate-pulse" />
+                  </div>
+                  <div className="space-y-0.5 flex-1">
+                    <div className="text-[10px] font-mono font-semibold text-indigo-400 flex items-center gap-1.5">
+                      <span>Transcribing in real-time...</span>
+                    </div>
+                    <div className="text-white/95 italic font-sans text-xs sm:text-sm">
+                      {interimTranscript}
+                    </div>
+                  </div>
+                </div>
               )}
               <div ref={transcriptEndRef} />
             </div>

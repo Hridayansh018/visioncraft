@@ -30,6 +30,7 @@ interface AudioMeetingContextType {
   ramBufferState: 'idle' | 'buffering_raw' | 'scanning_guardrail' | 'zero_overwritten';
   recentCaughtAlert: { count: number; name: string; time: number } | null;
   setRecentCaughtAlert: (alert: { count: number; name: string; time: number } | null) => void;
+  interimTranscript: string;
 
   // Meeting Data
   currentSession: MeetingSession;
@@ -93,6 +94,7 @@ export const AudioMeetingProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [pipelineLatencyMs, setPipelineLatencyMs] = useState<number>(12);
   const [ramBufferState, setRamBufferState] = useState<'idle' | 'buffering_raw' | 'scanning_guardrail' | 'zero_overwritten'>('idle');
   const [recentCaughtAlert, setRecentCaughtAlert] = useState<{ count: number; name: string; time: number } | null>(null);
+  const [interimTranscript, setInterimTranscript] = useState<string>('');
 
   const [currentSession, setCurrentSession] = useState<MeetingSession>(createEmptySession);
   const [sessions, setSessions] = useState<MeetingSession[]>([]);
@@ -117,6 +119,7 @@ export const AudioMeetingProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Persistent Refs across Page & Tab switches
   const recognitionRef = useRef<any>(null);
+  const speechSilenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const systemStreamRef = useRef<MediaStream | null>(null);
   const isCapturingRef = useRef<boolean>(false);
@@ -216,72 +219,68 @@ export const AudioMeetingProvider: React.FC<{ children: React.ReactNode }> = ({ 
     );
   }, []);
 
-  // Core Zero-Retention Pipeline Execution
+  // Core Zero-Retention Pipeline Execution - Instant & Zero Lag
   const handleIncomingSpeech = useCallback((rawSpeechText: string, speakerName?: string) => {
     if (!rawSpeechText.trim()) return;
 
-    setRamBufferState('buffering_raw');
+    setRamBufferState('scanning_guardrail');
+    const startMs = performance.now();
 
-    setTimeout(() => {
-      setRamBufferState('scanning_guardrail');
-      const startMs = performance.now();
+    const result = processGuardrailPipeline(
+      rawSpeechText,
+      rulesRef.current,
+      currentSession.id,
+      {
+        allowlist: allowlistRef.current,
+        activeLayers: activeLayersRef.current,
+        enableNormalization: true,
+      }
+    );
 
-      const result = processGuardrailPipeline(
-        rawSpeechText,
-        rulesRef.current,
-        currentSession.id,
-        {
-          allowlist: allowlistRef.current,
-          activeLayers: activeLayersRef.current,
-          enableNormalization: true,
-        }
-      );
+    const elapsed = Math.max(2, Math.round(performance.now() - startMs));
+    setPipelineLatencyMs(elapsed);
 
-      const elapsed = Math.max(8, Math.round(performance.now() - startMs));
-      setPipelineLatencyMs(elapsed);
+    setRamBufferState('zero_overwritten');
 
-      setRamBufferState('zero_overwritten');
+    // Update Messages in Session
+    const newMessage: MeetingMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      speaker: speakerName || 'Live Audio Stream',
+      timestamp: Date.now(),
+      redactedText: result.redactedText,
+      detectedSpans: result.detectedSpans,
+    };
 
-      // Update Messages in Session
-      const newMessage: MeetingMessage = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        speaker: speakerName || 'Live Audio Stream',
-        timestamp: Date.now(),
-        redactedText: result.redactedText,
-        detectedSpans: result.detectedSpans,
-      };
-
-      setCurrentSession((prev) => {
-        const nextCategories = { ...prev.redactionsByCategory };
-        result.detectedSpans.forEach((span) => {
-          nextCategories[span.category] = (nextCategories[span.category] || 0) + 1;
-        });
-
-        return {
-          ...prev,
-          messages: [...prev.messages, newMessage],
-          totalRedactions: prev.totalRedactions + result.detectedSpans.length,
-          redactionsByCategory: nextCategories,
-          durationSeconds: Math.round((Date.now() - prev.startedAt) / 1000),
-        };
+    setCurrentSession((prev) => {
+      const nextCategories = { ...prev.redactionsByCategory };
+      result.detectedSpans.forEach((span) => {
+        nextCategories[span.category] = (nextCategories[span.category] || 0) + 1;
       });
 
-      // Emit new caught events
-      if (result.events && result.events.length > 0) {
-        result.events.forEach((evt) => onRedactionCaught(evt));
+      return {
+        ...prev,
+        messages: [...prev.messages, newMessage],
+        totalRedactions: prev.totalRedactions + result.detectedSpans.length,
+        redactionsByCategory: nextCategories,
+        durationSeconds: Math.round((Date.now() - prev.startedAt) / 1000),
+      };
+    });
 
-        const topSpan = result.detectedSpans[0];
-        setRecentCaughtAlert({
-          count: result.detectedSpans.length,
-          name: topSpan ? topSpan.ruleName : 'Confidential Credential',
-          time: Date.now(),
-        });
-      }
+    // Emit new caught events
+    if (result.events && result.events.length > 0) {
+      result.events.forEach((evt) => onRedactionCaught(evt));
 
-      setTimeout(() => {
-        setRamBufferState('idle');
-      }, 1200);
-    }, 40);
+      const topSpan = result.detectedSpans[0];
+      setRecentCaughtAlert({
+        count: result.detectedSpans.length,
+        name: topSpan ? topSpan.ruleName : 'Confidential Credential',
+        time: Date.now(),
+      });
+    }
+
+    setTimeout(() => {
+      setRamBufferState('idle');
+    }, 600);
   }, [currentSession.id, onRedactionCaught]);
 
   // Continuous Speech Recognition Handler with Background Tab Auto-Reconnection
@@ -299,14 +298,37 @@ export const AudioMeetingProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     recognition.onresult = (event: any) => {
       let finalTranscript = '';
+      let interim = '';
+
       for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const text = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
+          finalTranscript += text;
+        } else {
+          interim += text;
         }
       }
 
+      // 1. If Web Speech API finalized a chunk, commit immediately
       if (finalTranscript.trim()) {
-        handleIncomingSpeech(finalTranscript, 'You (Microphone)');
+        if (speechSilenceTimerRef.current) clearTimeout(speechSilenceTimerRef.current);
+        setInterimTranscript('');
+        handleIncomingSpeech(finalTranscript.trim(), 'You (Microphone)');
+        return;
+      }
+
+      // 2. High-speed adaptive commit: update live interim text with 0 lag
+      if (interim.trim()) {
+        setInterimTranscript(interim.trim());
+
+        // Debounce 450ms of silence to commit the phrase without waiting 3s for browser isFinal
+        if (speechSilenceTimerRef.current) clearTimeout(speechSilenceTimerRef.current);
+        speechSilenceTimerRef.current = setTimeout(() => {
+          if (interim.trim()) {
+            setInterimTranscript('');
+            handleIncomingSpeech(interim.trim(), 'You (Microphone)');
+          }
+        }, 450);
       }
     };
 
@@ -488,6 +510,7 @@ export const AudioMeetingProvider: React.FC<{ children: React.ReactNode }> = ({ 
         ramBufferState,
         recentCaughtAlert,
         setRecentCaughtAlert,
+        interimTranscript,
         currentSession,
         setCurrentSession,
         sessions,
