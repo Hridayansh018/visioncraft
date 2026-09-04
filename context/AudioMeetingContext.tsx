@@ -11,7 +11,6 @@ import {
 } from '../lib/types';
 import { DEFAULT_GUARDRAIL_RULES } from '../lib/default-rules';
 import { processGuardrailPipeline } from '../lib/engine';
-import confetti from 'canvas-confetti';
 
 export type AppDeploymentTier = 'local_mvp' | 'cloud_saas' | 'enterprise_vpc';
 
@@ -277,15 +276,6 @@ export const AudioMeetingProvider: React.FC<{ children: React.ReactNode }> = ({ 
           name: topSpan ? topSpan.ruleName : 'Confidential Credential',
           time: Date.now(),
         });
-
-        try {
-          confetti({
-            particleCount: 25,
-            spread: 60,
-            origin: { y: 0.85 },
-            colors: ['#4d8eff', '#4fdbc8', '#ffb4ab'],
-          });
-        } catch { }
       }
 
       setTimeout(() => {

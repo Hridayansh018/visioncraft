@@ -56,3 +56,32 @@ def test_allowlist_filtering():
     text = "Here is token ghp_111122223333444455556666777788889999 for repo"
     spans = detector.detect(text, allowlist=["ghp_111122223333444455556666777788889999"])
     assert len(spans) == 0
+
+
+def test_detect_short_form_spoken_cues():
+    detector = DetectionEngine(DEFAULT_GUARDRAIL_RULES)
+    
+    # "the pass is" / "the pass"
+    spans1 = detector.detect("The pass is AlphaDelta999! for root access")
+    assert len(spans1) == 1
+    assert spans1[0].rule_id == "rule-spoken-password"
+    
+    # "pass: ..."
+    spans2 = detector.detect("Production pass: Secr3tP@ssw0rd please login")
+    assert len(spans2) == 1
+    assert spans2[0].rule_id == "rule-spoken-password"
+
+    # "the creds are" / "creds:"
+    spans3 = detector.detect("The creds are admin/MasterPass2026")
+    assert len(spans3) == 1
+    assert spans3[0].rule_id == "rule-spoken-password"
+
+    # "the pw is" / "pwd is"
+    spans4 = detector.detect("The pw is TopSecretPwd123")
+    assert len(spans4) == 1
+    assert spans4[0].rule_id == "rule-spoken-password"
+
+    # "conn str is"
+    spans5 = detector.detect("The conn str is postgres://admin:pass123@prod-db:5432/main")
+    assert len(spans5) >= 1
+

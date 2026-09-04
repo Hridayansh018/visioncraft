@@ -1,20 +1,20 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { 
-  ShieldCheck, 
-  Mic, 
-  ArrowRight, 
-  Lock, 
-  Zap, 
-  Activity, 
-  Layers, 
-  EyeOff, 
-  FileCheck, 
-  CheckCircle2, 
-  Radio, 
-  Cpu, 
+import {
+  ShieldCheck,
+  Mic,
+  ArrowRight,
+  Lock,
+  Zap,
+  Activity,
+  Layers,
+  EyeOff,
+  FileCheck,
+  CheckCircle2,
+  Radio,
+  Cpu,
   Sparkles,
   Sliders,
   FlaskConical,
@@ -58,8 +58,13 @@ const DEMO_PRESETS = [
 ];
 
 export default function LandingPage() {
+  const [mounted, setMounted] = useState<boolean>(false);
   const [activePresetIndex, setActivePresetIndex] = useState<number>(0);
   const [inputText, setInputText] = useState<string>(DEMO_PRESETS[0].text);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const activePreset = DEMO_PRESETS[activePresetIndex];
   const scanResult = processGuardrailPipeline(
@@ -74,7 +79,7 @@ export default function LandingPage() {
       {/* Hero Container with Atmospheric Mountain Dusk Horizon */}
       <div className="relative overflow-hidden bg-[#000000]">
         {/* Mountain Horizon Background Image with Gradient Overlay */}
-        <div 
+        <div
           className="absolute top-0 left-0 right-0 h-[640px] bg-cover bg-center bg-no-repeat pointer-events-none opacity-45"
           style={{ backgroundImage: "url('/mountain_horizon_dusk.jpg')" }}
         />
@@ -96,7 +101,7 @@ export default function LandingPage() {
             <Link href="/dashboard" className="hover:text-white transition-colors">Telemetry</Link>
             <Link href="/rules" className="hover:text-white transition-colors">Rules Manager</Link>
             <Link href="/eval" className="hover:text-white transition-colors">Quality & Eval</Link>
-            <Link href="/architecture" className="hover:text-white transition-colors">Architecture</Link>
+            <Link href="/audit" className="hover:text-white transition-colors">Audit Log</Link>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -149,10 +154,10 @@ export default function LandingPage() {
             </Link>
 
             <Link
-              href="/architecture"
+              href="/rules"
               className="flex items-center gap-2 px-5 py-3 rounded-full bg-white/[0.08] border border-white/15 text-white font-medium text-xs sm:text-sm hover:bg-white/15 backdrop-blur-md transition-all"
             >
-              <span>See Architecture & Economics</span>
+              <span>Explore Security Rules</span>
             </Link>
           </div>
 
@@ -188,8 +193,8 @@ export default function LandingPage() {
                   Zero-Retention Live Telemetry
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-xs font-mono text-[#94a3b8]">
-                <span>LATENCY: <strong className="text-white">{scanResult.processingTimeMs}ms</strong></span>
+              <div className="flex items-center gap-3 text-xs font-mono text-[#94a3b8]" suppressHydrationWarning>
+                <span suppressHydrationWarning>LATENCY: <strong className="text-white" suppressHydrationWarning>{mounted ? `${scanResult.processingTimeMs}ms` : '< 10ms'}</strong></span>
                 <span>·</span>
                 <span>SECRETS MASKED: <strong className="text-rose-400">{scanResult.detectedSpans.length}</strong></span>
               </div>
@@ -208,11 +213,10 @@ export default function LandingPage() {
                       setActivePresetIndex(idx);
                       setInputText(p.text);
                     }}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-                      activePresetIndex === idx
-                        ? 'bg-white text-black font-semibold shadow-md'
-                        : 'bg-white/[0.05] border border-white/10 text-[#94a3b8] hover:text-white hover:bg-white/[0.1]'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${activePresetIndex === idx
+                      ? 'bg-white text-black font-semibold shadow-md'
+                      : 'bg-white/[0.05] border border-white/10 text-[#94a3b8] hover:text-white hover:bg-white/[0.1]'
+                      }`}
                   >
                     {p.label}
                   </button>
@@ -507,7 +511,7 @@ export default function LandingPage() {
       {/* Bottom Horizon CTA Section with Mountain Dusk Artwork */}
       <section className="relative max-w-5xl mx-auto my-16 px-6 bg-[#000000]">
         <div className="relative rounded-3xl border border-white/[0.12] bg-[#07080a] p-10 sm:p-14 text-center overflow-hidden shadow-2xl space-y-6">
-          <div 
+          <div
             className="absolute inset-0 bg-cover bg-center opacity-30 pointer-events-none"
             style={{ backgroundImage: "url('/mountain_horizon_dusk.jpg')" }}
           />
@@ -530,17 +534,17 @@ export default function LandingPage() {
               Start Live Guardrail
             </Link>
             <Link
-              href="/architecture"
+              href="/dashboard"
               className="px-5 py-3 rounded-full bg-white/[0.08] border border-white/15 text-white font-medium text-xs sm:text-sm hover:bg-white/15 transition-all"
             >
-              View SaaS Architecture
+              View System Telemetry
             </Link>
           </div>
         </div>
 
         {/* Large Watermark Brand */}
         <div className="pt-16 pb-8 text-center select-none pointer-events-none">
-          <span className="font-extrabold text-6xl sm:text-8xl md:text-9xl text-white/[0.04] tracking-widest uppercase">
+          <span className="font-extrabold text-6xl sm:text-8xl md:text-9xl text-white/[0.1] tracking-widest uppercase">
             VisionCraft
           </span>
         </div>

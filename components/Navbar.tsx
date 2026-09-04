@@ -31,7 +31,6 @@ export const Navbar: React.FC = () => {
     { href: '/rules', label: 'Rules Manager', icon: Sliders },
     { href: '/eval', label: 'Quality & Eval', icon: FlaskConical },
     { href: '/audit', label: 'Audit Log', icon: FileText },
-    { href: '/architecture', label: 'SaaS Architecture', icon: Cloud },
   ];
 
   return (

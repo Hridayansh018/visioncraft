@@ -25,7 +25,10 @@ def scan_spoken_cues(
             continue
 
         for phrase in rule.trigger_phrases:
-            pattern = rf"\b{re.escape(phrase)}\b\s*[:=,]?\s*([A-Za-z0-9!@#$%^&*_\-+=\[\]{{}}~`'\"]+)"
+            clean_phrase = phrase.strip().rstrip(":=-, ")
+            if not clean_phrase:
+                continue
+            pattern = rf"\b{re.escape(clean_phrase)}\b\s*[:=,-]?\s*(?:is|are|was|were|equals|to|be|:|=|-|->)?\s*([A-Za-z0-9!@#$%^&*_\-+=\[\]{{}}~`'\"]+)"
             try:
                 for match in re.finditer(pattern, text, re.IGNORECASE):
                     secret_token = match.group(1)
@@ -49,7 +52,13 @@ def scan_spoken_cues(
                         continue
 
                     # Filter trivial conversational stop words if accidentally matched
-                    if target_text.lower() in {"a", "an", "the", "that", "this", "it"}:
+                    STOP_WORDS = {
+                        "a", "an", "the", "that", "this", "it", "to", "for", "in", "on", 
+                        "at", "by", "with", "from", "and", "or", "but", "is", "are", 
+                        "was", "were", "my", "your", "his", "her", "our", "their", 
+                        "not", "today", "tomorrow", "yesterday", "here", "there", "good", "great"
+                    }
+                    if target_text.lower() in STOP_WORDS or len(target_text.strip()) <= 1:
                         continue
 
                     preview = format_masked_preview(target_text)

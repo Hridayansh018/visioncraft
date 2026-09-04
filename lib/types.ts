@@ -116,3 +116,21 @@ export interface EvalResult {
   }[];
   timestamp: number;
 }
+
+export type SummaryTemplate = 'executive' | 'action_items' | 'post_mortem' | 'interview';
+
+export interface OpenRouterModel {
+  id: string;
+  name: string;
+  provider: string;
+  description: string;
+}
+
+export interface MeetingSummary {
+  id: string;
+  sessionId: string;
+  template: SummaryTemplate;
+  modelId: string;
+  content: string;
+  createdAt: number;
+}

@@ -25,8 +25,8 @@ interface ReviewQueueViewProps {
 export const ReviewQueueView: React.FC<ReviewQueueViewProps> = (props) => {
   const context = useAudioMeeting();
   const events = props.events || context.events;
-  const onUpdateEventStatus = props.onUpdateEventStatus || context.handleUpdateEventStatus;
-  const onTuneThreshold = props.onTuneThreshold || context.handleTuneThreshold;
+  const onUpdateEventStatus = props.onUpdateEventStatus || context.onUpdateEventStatus;
+  const onTuneThreshold = props.onTuneThreshold || context.onTuneThreshold;
 
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');

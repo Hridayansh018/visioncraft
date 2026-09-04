@@ -145,6 +145,7 @@ export const EvaluationView: React.FC<EvaluationViewProps> = (props) => {
       });
 
       setEvalResult({
+        totalCases: dataset.length,
         precision,
         recall,
         f1Score,
@@ -153,6 +154,7 @@ export const EvaluationView: React.FC<EvaluationViewProps> = (props) => {
         falseNegatives: totalFalseNegatives,
         avgLatencyMs,
         categoryBreakdown,
+        timestamp: Date.now(),
       });
 
       setIsRunning(false);

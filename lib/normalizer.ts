@@ -39,6 +39,10 @@ const NUMBER_WORDS: Record<string, string> = {
 };
 
 const SYMBOL_WORDS: Record<string, string> = {
+  'exclamation mark': '!',
+  exclamation: '!',
+  'question mark': '?',
+  question: '?',
   dot: '.',
   period: '.',
   at: '@',
@@ -54,8 +58,6 @@ const SYMBOL_WORDS: Record<string, string> = {
   pound: '#',
   percent: '%',
   dollar: '$',
-  exclamation: '!',
-  question: '?',
   plus: '+',
   equals: '=',
   star: '*',

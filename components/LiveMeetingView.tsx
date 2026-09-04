@@ -1,22 +1,22 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  Mic, 
-  MicOff, 
-  Play, 
-  Pause, 
-  RotateCcw, 
-  Download, 
-  ShieldAlert, 
-  Lock, 
-  Cpu, 
-  SlidersHorizontal, 
-  CheckCircle2, 
-  Sparkles, 
-  Volume2, 
-  Layers, 
-  Activity, 
+import {
+  Mic,
+  MicOff,
+  Play,
+  Pause,
+  RotateCcw,
+  Download,
+  ShieldAlert,
+  Lock,
+  Cpu,
+  SlidersHorizontal,
+  CheckCircle2,
+  Sparkles,
+  Volume2,
+  Layers,
+  Activity,
   Info,
   ChevronRight,
   Terminal,
@@ -35,7 +35,7 @@ import { GuardrailRule, DetectedSpan, MeetingMessage, MeetingSession, RedactionE
 import { processGuardrailPipeline } from '../lib/engine';
 import { PREDEFINED_MEETING_SCENARIOS, PredefinedMeetingScenario } from '../lib/meeting-scenarios';
 import { useAudioMeeting } from '../context/AudioMeetingContext';
-import confetti from 'canvas-confetti';
+import { MeetingSummaryModal } from './MeetingSummaryModal';
 
 interface LiveMeetingViewProps {
   rules?: GuardrailRule[];
@@ -80,6 +80,7 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
     handleClearSession,
   } = context;
   const [showAudioHelp, setShowAudioHelp] = useState<boolean>(false);
+  const [showSummaryModal, setShowSummaryModal] = useState<boolean>(false);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('devops-incident');
   const [customInputText, setCustomInputText] = useState<string>('');
   const [activeSpeaker, setActiveSpeaker] = useState<string>('');
@@ -229,11 +230,10 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
                 type="button"
                 onClick={() => setCaptureMode('dual_mixed')}
                 disabled={isCapturing}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  captureMode === 'dual_mixed'
-                    ? 'bg-white text-black font-semibold shadow-sm'
-                    : 'text-white/60 hover:text-white'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${captureMode === 'dual_mixed'
+                  ? 'bg-white text-black font-semibold shadow-sm'
+                  : 'text-white/60 hover:text-white'
+                  }`}
                 title="Capture both your microphone and computer audio"
               >
                 <Headphones className="w-3.5 h-3.5" />
@@ -243,11 +243,10 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
                 type="button"
                 onClick={() => setCaptureMode('system_tab_only')}
                 disabled={isCapturing}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  captureMode === 'system_tab_only'
-                    ? 'bg-white text-black font-semibold shadow-sm'
-                    : 'text-white/60 hover:text-white'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${captureMode === 'system_tab_only'
+                  ? 'bg-white text-black font-semibold shadow-sm'
+                  : 'text-white/60 hover:text-white'
+                  }`}
                 title="Capture only incoming audio from the meeting tab/window"
               >
                 <Monitor className="w-3.5 h-3.5" />
@@ -257,11 +256,10 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
                 type="button"
                 onClick={() => setCaptureMode('mic_only')}
                 disabled={isCapturing}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  captureMode === 'mic_only'
-                    ? 'bg-white text-black font-semibold shadow-sm'
-                    : 'text-white/60 hover:text-white'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${captureMode === 'mic_only'
+                  ? 'bg-white text-black font-semibold shadow-sm'
+                  : 'text-white/60 hover:text-white'
+                  }`}
                 title="Capture only your local microphone"
               >
                 <Mic className="w-3.5 h-3.5" />
@@ -274,11 +272,10 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
               id="live-mic-toggle-button"
               onClick={() => startLiveAudioCapture(captureMode)}
               disabled={isProcessingAudioFile}
-              className={`flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-semibold transition-all shadow-md ${
-                isCapturing && !isProcessingAudioFile
-                  ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
-                  : 'bg-white hover:bg-white/90 text-black disabled:opacity-50'
-              }`}
+              className={`flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-semibold transition-all shadow-md ${isCapturing && !isProcessingAudioFile
+                ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
+                : 'bg-white hover:bg-white/90 text-black disabled:opacity-50'
+                }`}
             >
               {isCapturing && !isProcessingAudioFile ? (
                 <>
@@ -358,25 +355,35 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
               <RotateCcw className="h-3.5 w-3.5" />
               <span>Reset</span>
             </button>
+
+            {/* OpenRouter AI Meeting Summary Trigger - Bright Vibrant Luminous Styling */}
+            <button
+              id="open-summary-modal-button"
+              onClick={() => setShowSummaryModal(true)}
+              disabled={currentSession.messages.length === 0}
+              className="flex items-center gap-2 rounded-xl bg-blue-5 00 hover:from-violet-400 hover:via-indigo-400 hover:to-purple-400 text-white font-bold text-xs sm:text-sm px-4 py-2.5 shadow-lg shadow-indigo-500/40 ring-1 ring-white/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 disabled:shadow-none cursor-pointer"
+              title="Generate OpenRouter AI Meeting Summary & Action Items"
+            >
+              <Sparkles className="h-4 w-4 text-white animate-pulse" />
+              <span className="tracking-wide">AI Summary</span>
+            </button>
           </div>
 
           {/* Quick Metrics, Source Badges & Visualizer */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Active Source Indicators */}
             <div className="flex items-center gap-1.5 text-[11px] font-mono">
-              <span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
-                isMicActive
-                  ? 'bg-white/[0.08] border-emerald-400/40 text-emerald-400 animate-pulse'
-                  : 'bg-[#07080a] border-white/10 text-white/40'
-              }`}>
+              <span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${isMicActive
+                ? 'bg-white/[0.08] border-emerald-400/40 text-emerald-400 animate-pulse'
+                : 'bg-[#07080a] border-white/10 text-white/40'
+                }`}>
                 <Mic className="w-3 h-3" />
                 <span>Mic: {isMicActive ? 'ON' : 'OFF'}</span>
               </span>
-              <span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
-                isSystemActive
-                  ? 'bg-white/[0.08] border-emerald-400/40 text-emerald-400 animate-pulse'
-                  : 'bg-[#07080a] border-white/10 text-white/40'
-              }`}>
+              <span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${isSystemActive
+                ? 'bg-white/[0.08] border-emerald-400/40 text-emerald-400 animate-pulse'
+                : 'bg-[#07080a] border-white/10 text-white/40'
+                }`}>
                 <Monitor className="w-3 h-3" />
                 <span>System: {isSystemActive ? 'ON' : 'OFF'}</span>
               </span>
@@ -499,57 +506,52 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
         {/* Interactive Steps Pipeline */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-2 text-center text-xs">
           {/* Step 1: Ingestion */}
-          <div className={`rounded-xl border p-2.5 transition-all ${
-            ramBufferState === 'buffering_raw'
-              ? 'border-white bg-white/10 text-white shadow-sm'
-              : 'border-white/10 bg-[#07080a] text-white/50'
-          }`}>
+          <div className={`rounded-xl border p-2.5 transition-all ${ramBufferState === 'buffering_raw'
+            ? 'border-white bg-white/10 text-white shadow-sm'
+            : 'border-white/10 bg-[#07080a] text-white/50'
+            }`}>
             <div className="font-mono text-[10px] text-white/40 mb-1">STEP 01</div>
             <div className="font-semibold text-white">Audio Ingestion</div>
             <div className="text-[10px] text-white/40 mt-0.5">VAD Chunking (2-4s)</div>
           </div>
 
           {/* Step 2: Local Whisper STT */}
-          <div className={`rounded-xl border p-2.5 transition-all ${
-            ramBufferState === 'buffering_raw' || ramBufferState === 'scanning_guardrail'
-              ? 'border-white bg-white/10 text-white shadow-sm'
-              : 'border-white/10 bg-[#07080a] text-white/50'
-          }`}>
+          <div className={`rounded-xl border p-2.5 transition-all ${ramBufferState === 'buffering_raw' || ramBufferState === 'scanning_guardrail'
+            ? 'border-white bg-white/10 text-white shadow-sm'
+            : 'border-white/10 bg-[#07080a] text-white/50'
+            }`}>
             <div className="font-mono text-[10px] text-white/40 mb-1">STEP 02</div>
             <div className="font-semibold text-white">Local STT Worker</div>
             <div className="text-[10px] text-white/40 mt-0.5">faster-whisper int8</div>
           </div>
 
           {/* Step 3: Raw Ephemeral Buffer */}
-          <div className={`rounded-xl border p-2.5 transition-all ${
-            ramBufferState === 'scanning_guardrail'
-              ? 'border-amber-400 bg-amber-500/10 text-amber-300 animate-pulse'
-              : ramBufferState === 'zero_overwritten'
+          <div className={`rounded-xl border p-2.5 transition-all ${ramBufferState === 'scanning_guardrail'
+            ? 'border-amber-400 bg-amber-500/10 text-amber-300 animate-pulse'
+            : ramBufferState === 'zero_overwritten'
               ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
               : 'border-white/10 bg-[#07080a] text-white/50'
-          }`}>
+            }`}>
             <div className="font-mono text-[10px] text-white/40 mb-1">STEP 03 (RAM ONLY)</div>
             <div className="font-semibold text-white">Guardrail Engine</div>
             <div className="text-[10px] text-white/40 mt-0.5">Layer 1+2+3 Detectors</div>
           </div>
 
           {/* Step 4: Redacted Stream Output */}
-          <div className={`rounded-xl border p-2.5 transition-all ${
-            ramBufferState === 'zero_overwritten'
-              ? 'border-white/50 bg-white/10 text-white'
-              : 'border-white/10 bg-[#07080a] text-white/50'
-          }`}>
+          <div className={`rounded-xl border p-2.5 transition-all ${ramBufferState === 'zero_overwritten'
+            ? 'border-white/50 bg-white/10 text-white'
+            : 'border-white/10 bg-[#07080a] text-white/50'
+            }`}>
             <div className="font-mono text-[10px] text-white/40 mb-1">STEP 04</div>
             <div className="font-semibold text-white">Redacted Stream</div>
             <div className="text-[10px] text-white/40 mt-0.5">Live UI + SQLite DB</div>
           </div>
 
           {/* Step 5: RAM Zero Wipe */}
-          <div className={`rounded-xl border p-2.5 transition-all ${
-            ramBufferState === 'zero_overwritten'
-              ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300 shadow-md ring-1 ring-emerald-500/50'
-              : 'border-white/10 bg-[#07080a] text-white/50'
-          }`}>
+          <div className={`rounded-xl border p-2.5 transition-all ${ramBufferState === 'zero_overwritten'
+            ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300 shadow-md ring-1 ring-emerald-500/50'
+            : 'border-white/10 bg-[#07080a] text-white/50'
+            }`}>
             <div className="font-mono text-[10px] text-emerald-400 mb-1">STEP 05 (WIPED)</div>
             <div className="font-semibold text-emerald-400 flex items-center justify-center gap-1">
               <Lock className="w-3 h-3 inline" /> 0x00 Zero-Fill
@@ -633,13 +635,12 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
                           <button
                             key={span.id}
                             onClick={() => setSelectedSpan(span)}
-                            className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-medium border transition-colors ${
-                              span.severity === 'critical'
-                                ? 'bg-rose-950/80 text-rose-300 border-rose-800 hover:bg-rose-900'
-                                : span.severity === 'high'
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-medium border transition-colors ${span.severity === 'critical'
+                              ? 'bg-rose-950/80 text-rose-300 border-rose-800 hover:bg-rose-900'
+                              : span.severity === 'high'
                                 ? 'bg-amber-950/80 text-amber-300 border-amber-800 hover:bg-amber-900'
                                 : 'bg-indigo-950/80 text-indigo-300 border-indigo-800 hover:bg-indigo-900'
-                            }`}
+                              }`}
                           >
                             {span.maskedReplacement} ({Math.round(span.confidence * 100)}%)
                           </button>
@@ -796,16 +797,16 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
             )}
           </div>
 
-          {/* Floating Recent Caught Toast Card */}
+          {/* Recent Interception Telemetry Card */}
           {recentCaughtAlert && (
-            <div className="rounded-xl border border-rose-500/50 bg-rose-950/80 p-3 text-xs text-rose-200 shadow-xl animate-bounce flex items-center justify-between">
+            <div className="rounded-xl border border-rose-500/30 bg-rose-950/40 p-3 text-xs text-rose-200 shadow-lg flex items-center justify-between transition-all">
               <div className="flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4 text-rose-400" />
+                <ShieldAlert className="h-4 w-4 text-rose-400 shrink-0" />
                 <span>
                   <strong>{recentCaughtAlert.count} secret(s)</strong> intercepted & redacted ({recentCaughtAlert.name})
                 </span>
               </div>
-              <span className="font-mono text-[10px] text-rose-400">JUST NOW</span>
+              <span className="font-mono text-[10px] text-rose-400/80 uppercase">Zero-Retention</span>
             </div>
           )}
         </div>
@@ -874,6 +875,14 @@ export const LiveMeetingView: React.FC<LiveMeetingViewProps> = (props) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* OpenRouter AI Meeting Summary Modal */}
+      {showSummaryModal && (
+        <MeetingSummaryModal
+          session={currentSession}
+          onClose={() => setShowSummaryModal(false)}
+        />
       )}
     </div>
   );

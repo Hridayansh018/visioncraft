@@ -200,30 +200,39 @@ export function processGuardrailPipeline(
           const secretStart = cuePos + cue.length;
           // Capture next 1 to 4 tokens following the trigger phrase
           const remainder = textToScan.slice(secretStart);
-          const trailingTokensMatch = remainder.match(/^\s*[:=]?\s*([^\s,.!?;]+(?:\s+[^\s,.!?;]+){0,2})/);
+          const trailingTokensMatch = remainder.match(/^\s*(?:is|are|was|were|equals|to|be|:|=|-|->)?\s*([^\s,.!?;]+(?:\s+[^\s,.!?;]+){0,2})/i);
+
+          const STOP_WORDS = new Set([
+            'a', 'an', 'the', 'that', 'this', 'it', 'to', 'for', 'in', 'on',
+            'at', 'by', 'with', 'from', 'and', 'or', 'but', 'is', 'are',
+            'was', 'were', 'my', 'your', 'his', 'her', 'our', 'their',
+            'not', 'today', 'tomorrow', 'yesterday', 'here', 'there', 'good', 'great'
+          ]);
 
           if (trailingTokensMatch && trailingTokensMatch[1] && trailingTokensMatch[1].trim().length > 1) {
             const secretValue = trailingTokensMatch[1].trim();
-            const actualStart = secretStart + remainder.indexOf(secretValue);
-            const actualEnd = actualStart + secretValue.length;
+            if (!STOP_WORDS.has(secretValue.toLowerCase())) {
+              const actualStart = secretStart + remainder.indexOf(secretValue);
+              const actualEnd = actualStart + secretValue.length;
 
-            // Ensure not already protected by an earlier span
-            if (!rawSpans.some(s => actualStart >= s.start && actualEnd <= s.end)) {
-              const replacement = formatRedactedReplacement(rule, secretValue);
-              rawSpans.push({
-                id: `span-cue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                ruleId: rule.id,
-                ruleName: rule.name,
-                category: rule.category,
-                layer: 3,
-                start: actualStart,
-                end: actualEnd,
-                rawTextPreviewMasked: `${secretValue.slice(0, 1)}••••••`,
-                maskedReplacement: replacement,
-                confidence: rule.confidenceThreshold,
-                severity: rule.severity,
-                contextSnippet: createSafeContext(textToScan, actualStart, actualEnd, replacement),
-              });
+              // Ensure not already protected by an earlier span
+              if (!rawSpans.some(s => actualStart >= s.start && actualEnd <= s.end)) {
+                const replacement = formatRedactedReplacement(rule, secretValue);
+                rawSpans.push({
+                  id: `span-cue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                  ruleId: rule.id,
+                  ruleName: rule.name,
+                  category: rule.category,
+                  layer: 3,
+                  start: actualStart,
+                  end: actualEnd,
+                  rawTextPreviewMasked: `${secretValue.slice(0, 1)}••••••`,
+                  maskedReplacement: replacement,
+                  confidence: rule.confidenceThreshold,
+                  severity: rule.severity,
+                  contextSnippet: createSafeContext(textToScan, actualStart, actualEnd, replacement),
+                });
+              }
             }
           }
 
